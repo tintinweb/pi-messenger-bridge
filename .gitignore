@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.log
+.env
+.DS_Store
+*.tsbuildinfo
+.config/
+*.swp
+*.swo
+*~
+.vscode/settings.json
+plan/

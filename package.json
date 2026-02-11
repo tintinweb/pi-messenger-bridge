@@ -1,0 +1,58 @@
+{
+  "name": "pi-msg-bridge",
+  "version": "0.1.0",
+  "description": "Bridge common messengers (Telegram, WhatsApp, Slack, Discord) into pi",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "pi": {
+    "extensions": [
+      "./dist/index.js"
+    ]
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build"
+  },
+  "keywords": [
+    "pi",
+    "pi-extension",
+    "telegram",
+    "remote",
+    "messenger",
+    "bridge",
+    "bot",
+    "coding-agent"
+  ],
+  "author": "tintinweb",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tintinweb/pi-msg-bridge.git"
+  },
+  "bugs": {
+    "url": "https://github.com/tintinweb/pi-msg-bridge/issues"
+  },
+  "homepage": "https://github.com/tintinweb/pi-msg-bridge#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "dependencies": {
+    "@mariozechner/pi-coding-agent": "latest",
+    "@mariozechner/pi-tui": "latest",
+    "@mariozechner/pi-ai": "latest",
+    "node-telegram-bot-api": "^0.67.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "@types/node-telegram-bot-api": "^0.64.13"
+  }
+}
