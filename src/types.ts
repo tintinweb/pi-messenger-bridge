@@ -39,6 +39,10 @@ export interface MsgBridgeConfig {
   discord?: {
     token: string;
   };
+  matrix?: {
+    homeserverUrl: string;
+    accessToken: string;
+  };
   auth?: {
     trustedUsers?: string[];
     adminUserId?: string;
