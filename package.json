@@ -66,9 +66,11 @@
     "qrcode-terminal": "^0.12.0"
   },
   "devDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.59.0",
     "@types/node": "^20.0.0",
     "@types/node-telegram-bot-api": "^0.64.13",
     "@types/qrcode-terminal": "^0.12.2",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.18"
   }
 }

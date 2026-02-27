@@ -8,6 +8,14 @@ import {
 import type { ITransportProvider } from "./interface.js";
 import type { ExternalMessage } from "../types.js";
 import type { ChallengeAuth } from "../auth/challenge-auth.js";
+import {
+  formatForMatrix,
+  escapeHtml,
+  shouldSkipEvent,
+  extractUsername,
+  wasBotMentioned,
+  stripBotMention,
+} from "./matrix-utils.js";
 import * as path from "path";
 import * as os from "os";
 
@@ -35,51 +43,7 @@ export class MatrixProvider implements ITransportProvider {
     return this._isConnected;
   }
 
-  /**
-   * Convert standard markdown to Matrix HTML for rich formatting.
-   * Matrix supports a subset of HTML in m.formatted_body.
-   * For simplicity we send plain text with org.matrix.custom.html format
-   * only when there's actual markdown to convert.
-   */
-  private formatForMatrix(text: string): { body: string; formattedBody?: string } {
-    // Always include plain text body
-    // Only add formatted_body if there's markdown worth converting
-    const hasMarkdown = /[*_`#\[]/.test(text);
-    if (!hasMarkdown) {
-      return { body: text };
-    }
-
-    let html = text;
-
-    // Protect code blocks
-    const codeBlocks: string[] = [];
-    html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
-      codeBlocks.push(`<pre><code${lang ? ` class="language-${lang}"` : ""}>${this.escapeHtml(code.trimEnd())}</code></pre>`);
-      return `__CODEBLOCK_${codeBlocks.length - 1}__`;
-    });
-
-    // Protect inline code
-    const inlineCodes: string[] = [];
-    html = html.replace(/`([^`]+)`/g, (_, code) => {
-      inlineCodes.push(`<code>${this.escapeHtml(code)}</code>`);
-      return `__INLINECODE_${inlineCodes.length - 1}__`;
-    });
-
-    // Bold
-    html = html.replace(/\*\*([^*]+?)\*\*/g, "<strong>$1</strong>");
-    // Italic
-    html = html.replace(/(?<!\*)\*(?!\*)([^*]+?)(?<!\*)\*(?!\*)/g, "<em>$1</em>");
-    // Links
-    html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>');
-    // Newlines to <br>
-    html = html.replace(/\n/g, "<br>");
-
-    // Restore code blocks and inline code
-    html = html.replace(/__CODEBLOCK_(\d+)__/g, (_, idx) => codeBlocks[parseInt(idx)]);
-    html = html.replace(/__INLINECODE_(\d+)__/g, (_, idx) => inlineCodes[parseInt(idx)]);
-
-    return { body: text, formattedBody: html };
-  }
+  // Formatting delegated to matrix-utils.ts (pure, testable)
 
   async connect(): Promise<void> {
     if (this._isConnected) return;
@@ -200,7 +164,7 @@ export class MatrixProvider implements ITransportProvider {
       throw new Error("Matrix client not connected");
     }
 
-    const { body, formattedBody } = this.formatForMatrix(text);
+    const { body, formattedBody } = formatForMatrix(text);
 
     await this.client.sendMessage(chatId, {
       msgtype: "m.text",
@@ -232,28 +196,14 @@ export class MatrixProvider implements ITransportProvider {
   private async handleMessage(roomId: string, event: any): Promise<void> {
     if (!this.client || !this.botUserId) return;
 
-    // Ignore own messages
-    if (event.sender === this.botUserId) return;
-
-    // Skip events from before this connection (stale replay from initial sync)
-    const eventTs = event.origin_server_ts || 0;
-    if (eventTs < this.connectedAt) return;
-
-    // Only process text messages
-    const content = event.content;
-    if (!content || content.msgtype !== "m.text" || !content.body) return;
-
-    // Ignore edits (we only process original messages)
-    if (content["m.new_content"]) return;
-
-    // Skip events from rooms we're not in (cached, no API call)
-    if (!this.joinedRooms.has(roomId)) return;
+    // Pure filter — delegates to testable utility
+    const skipReason = shouldSkipEvent(event, this.botUserId, this.connectedAt, this.joinedRooms, roomId);
+    if (skipReason) return;
 
     const chatId = roomId;
     const userId = event.sender; // e.g. @user:matrix.org
-    // Extract localpart as username
-    const username = userId.replace(/^@/, "").replace(/:.*$/, "");
-    const messageText = content.body;
+    const username = extractUsername(userId);
+    const messageText = event.content.body;
     const messageId = event.event_id;
 
     // Determine if group chat from cached member count (no API call per message)
@@ -270,13 +220,8 @@ export class MatrixProvider implements ITransportProvider {
     }
     const isGroupChat = memberCount > 2;
 
-    // Check if bot was mentioned
-    let wasMentioned = false;
-    if (isGroupChat) {
-      wasMentioned =
-        messageText.includes(this.botUserId) ||
-        messageText.toLowerCase().includes(this.botUserId.split(":")[0].substring(1).toLowerCase());
-    }
+    // Check if bot was mentioned (pure utility)
+    const wasMentioned = isGroupChat ? wasBotMentioned(messageText, this.botUserId) : false;
 
     // Check authorization
     const sendMessageToUser = async (cId: string, text: string) => {
@@ -307,13 +252,10 @@ export class MatrixProvider implements ITransportProvider {
 
     if (!isAuthorized) return;
 
-    // Strip bot mention from message
-    let cleanContent = messageText;
-    if (wasMentioned && this.botUserId) {
-      cleanContent = cleanContent
-        .replace(new RegExp(this.botUserId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), "")
-        .trim();
-    }
+    // Strip bot mention from message (pure utility)
+    const cleanContent = wasMentioned && this.botUserId
+      ? stripBotMention(messageText, this.botUserId)
+      : messageText;
 
     // Forward to message handler
     if (this.messageHandler && cleanContent) {
@@ -333,11 +275,4 @@ export class MatrixProvider implements ITransportProvider {
     }
   }
 
-  private escapeHtml(text: string): string {
-    return text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
 }
