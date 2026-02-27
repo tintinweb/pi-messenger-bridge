@@ -19,6 +19,9 @@ export class MatrixProvider implements ITransportProvider {
   private _isConnected = false;
   private messageHandler?: (message: ExternalMessage) => void;
   private errorHandler?: (error: Error) => void;
+  private botUserId?: string;
+  private joinedRooms = new Set<string>();
+  private connectedAt = 0;
 
   constructor(
     private homeserverUrl: string,
@@ -95,6 +98,17 @@ export class MatrixProvider implements ITransportProvider {
     // Auto-join rooms the bot is invited to
     AutojoinRoomsMixin.setupOnClient(this.client);
 
+    // Cache bot user ID (never changes)
+    this.botUserId = await this.client.getUserId();
+
+    // Track room membership
+    this.client.on("room.join", (roomId: string) => {
+      this.joinedRooms.add(roomId);
+    });
+    this.client.on("room.leave", (roomId: string) => {
+      this.joinedRooms.delete(roomId);
+    });
+
     // Handle incoming messages
     this.client.on("room.message", async (roomId: string, event: any) => {
       try {
@@ -107,6 +121,11 @@ export class MatrixProvider implements ITransportProvider {
     });
 
     await this.client.start();
+
+    // Seed joined rooms cache and record connection time
+    const rooms = await this.client.getJoinedRooms();
+    this.joinedRooms = new Set(rooms);
+    this.connectedAt = Date.now();
     this._isConnected = true;
   }
 
@@ -116,6 +135,9 @@ export class MatrixProvider implements ITransportProvider {
     this.client.stop();
     this._isConnected = false;
     this.client = undefined;
+    this.botUserId = undefined;
+    this.joinedRooms.clear();
+    this.connectedAt = 0;
   }
 
   async sendMessage(chatId: string, text: string): Promise<void> {
@@ -125,19 +147,14 @@ export class MatrixProvider implements ITransportProvider {
 
     const { body, formattedBody } = this.formatForMatrix(text);
 
-    if (formattedBody) {
-      await this.client.sendMessage(chatId, {
-        msgtype: "m.text",
-        body,
+    await this.client.sendMessage(chatId, {
+      msgtype: "m.text",
+      body,
+      ...(formattedBody && {
         format: "org.matrix.custom.html",
         formatted_body: formattedBody,
-      });
-    } else {
-      await this.client.sendMessage(chatId, {
-        msgtype: "m.text",
-        body,
-      });
-    }
+      }),
+    });
   }
 
   async sendTyping(chatId: string): Promise<void> {
@@ -158,10 +175,14 @@ export class MatrixProvider implements ITransportProvider {
   }
 
   private async handleMessage(roomId: string, event: any): Promise<void> {
+    if (!this.client || !this.botUserId) return;
+
     // Ignore own messages
-    if (!this.client) return;
-    const botUserId = await this.client.getUserId();
-    if (event.sender === botUserId) return;
+    if (event.sender === this.botUserId) return;
+
+    // Skip events from before this connection (stale replay from initial sync)
+    const eventTs = event.origin_server_ts || 0;
+    if (eventTs < this.connectedAt) return;
 
     // Only process text messages
     const content = event.content;
@@ -170,13 +191,8 @@ export class MatrixProvider implements ITransportProvider {
     // Ignore edits (we only process original messages)
     if (content["m.new_content"]) return;
 
-    // Verify bot is still in this room (skip events from left/kicked rooms)
-    try {
-      const joinedRooms = await this.client.getJoinedRooms();
-      if (!joinedRooms.includes(roomId)) return;
-    } catch {
-      return; // Can't verify membership — skip
-    }
+    // Skip events from rooms we're not in (cached, no API call)
+    if (!this.joinedRooms.has(roomId)) return;
 
     const chatId = roomId;
     const userId = event.sender; // e.g. @user:matrix.org
@@ -198,8 +214,8 @@ export class MatrixProvider implements ITransportProvider {
     let wasMentioned = false;
     if (isGroupChat) {
       wasMentioned =
-        messageText.includes(botUserId) ||
-        messageText.toLowerCase().includes(botUserId.split(":")[0].substring(1).toLowerCase());
+        messageText.includes(this.botUserId) ||
+        messageText.toLowerCase().includes(this.botUserId.split(":")[0].substring(1).toLowerCase());
     }
 
     // Check authorization
@@ -233,9 +249,9 @@ export class MatrixProvider implements ITransportProvider {
 
     // Strip bot mention from message
     let cleanContent = messageText;
-    if (wasMentioned) {
+    if (wasMentioned && this.botUserId) {
       cleanContent = cleanContent
-        .replace(new RegExp(botUserId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), "")
+        .replace(new RegExp(this.botUserId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), "")
         .trim();
     }
 
