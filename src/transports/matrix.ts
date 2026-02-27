@@ -2,6 +2,8 @@ import {
   MatrixClient,
   SimpleFsStorageProvider,
   AutojoinRoomsMixin,
+  RustSdkCryptoStorageProvider,
+  RustSdkCryptoStoreType,
 } from "matrix-bot-sdk";
 import type { ITransportProvider } from "./interface.js";
 import type { ExternalMessage } from "../types.js";
@@ -24,7 +26,7 @@ export class MatrixProvider implements ITransportProvider {
   private connectedAt = 0;
 
   constructor(
-    private config: { homeserverUrl: string; accessToken: string },
+    private config: { homeserverUrl: string; accessToken: string; encryption?: boolean },
     private auth: ChallengeAuth
   ) {}
 
@@ -94,10 +96,30 @@ export class MatrixProvider implements ITransportProvider {
     );
     const storage = new SimpleFsStorageProvider(storagePath);
 
+    // Set up E2EE crypto storage if encryption is enabled.
+    // Uses @matrix-org/matrix-sdk-crypto-nodejs (native Rust, SQLite on disk).
+    // Crypto state persists across restarts — same device, same keys.
+    // The device must be verified once from another Matrix client (Element, etc).
+    let cryptoProvider: RustSdkCryptoStorageProvider | undefined;
+    if (this.config.encryption !== false) {
+      try {
+        const cryptoStorePath = path.join(
+          os.homedir(),
+          ".pi",
+          "msg-bridge-matrix-crypto"
+        );
+        cryptoProvider = new RustSdkCryptoStorageProvider(cryptoStorePath, RustSdkCryptoStoreType.Sqlite);
+        console.log("[Matrix] E2EE crypto storage enabled (Rust/SQLite)");
+      } catch (err) {
+        console.warn("[Matrix] E2EE crypto not available, continuing without encryption:", (err as Error).message);
+      }
+    }
+
     this.client = new MatrixClient(
       homeserverUrl,
       accessToken,
-      storage
+      storage,
+      cryptoProvider
     );
 
     // Auto-join rooms the bot is invited to
@@ -137,7 +159,8 @@ export class MatrixProvider implements ITransportProvider {
     this.joinedRooms = new Set(rooms);
     this.connectedAt = Date.now();
     this._isConnected = true;
-    console.log(`✅ Matrix connected as ${this.botUserId} (${rooms.length} rooms)`);
+    const cryptoStatus = cryptoProvider ? "E2EE enabled" : "E2EE disabled";
+    console.log(`✅ Matrix connected as ${this.botUserId} (${rooms.length} rooms, ${cryptoStatus})`);
   }
 
   async disconnect(): Promise<void> {

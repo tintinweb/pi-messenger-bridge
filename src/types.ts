@@ -42,6 +42,7 @@ export interface MsgBridgeConfig {
   matrix?: {
     homeserverUrl: string;
     accessToken: string;
+    encryption?: boolean;
   };
   auth?: {
     trustedUsers?: string[];
