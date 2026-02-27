@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import * as fc from "fast-check";
 import {
   escapeHtml,
   formatForMatrix,
@@ -251,6 +252,64 @@ describe("stripBotMention", () => {
 
   it("handles message that is only the mention", () => {
     expect(stripBotMention("@pibot:matrix.org", botUserId)).toBe("");
+  });
+});
+
+// ─── Property tests ───────────────────────────────────────────
+
+describe("formatForMatrix properties", () => {
+  it("body always equals original input (preservation)", () => {
+    fc.assert(
+      fc.property(fc.string(), (text) => {
+        const result = formatForMatrix(text);
+        expect(result.body).toBe(text);
+      })
+    );
+  });
+
+  it("formattedBody is undefined when no markdown chars present", () => {
+    // Generate strings that don't contain markdown-triggering chars
+    const noMarkdown = fc.string().filter((s) => !/[*_`#\[]/.test(s));
+    fc.assert(
+      fc.property(noMarkdown, (text) => {
+        const result = formatForMatrix(text);
+        expect(result.formattedBody).toBeUndefined();
+      })
+    );
+  });
+});
+
+describe("stripBotMention properties", () => {
+  it("result never contains the bot MXID (verification)", () => {
+    // Generate valid-ish MXIDs: @localpart:server
+    const localpart = fc.string({ minLength: 1, maxLength: 10 }).filter((s) => !/[@: ]/.test(s) && s.length > 0);
+    const server = fc.string({ minLength: 1, maxLength: 10 }).filter((s) => !/[@: ]/.test(s) && s.length > 0);
+    const mxid = fc.tuple(localpart, server).map(([user, host]) => `@${user}:${host}`);
+
+    fc.assert(
+      fc.property(mxid, fc.string(), (botId, prefix) => {
+        const text = `${prefix} ${botId} some text`;
+        const result = stripBotMention(text, botId);
+        expect(result).not.toContain(botId);
+      })
+    );
+  });
+});
+
+describe("escapeHtml properties", () => {
+  it("output never contains raw <, >, &, or \" (except as entities)", () => {
+    fc.assert(
+      fc.property(fc.string(), (text) => {
+        const result = escapeHtml(text);
+        // After escaping, the only < > & " should be inside entity sequences
+        const withoutEntities = result
+          .replace(/&amp;/g, "")
+          .replace(/&lt;/g, "")
+          .replace(/&gt;/g, "")
+          .replace(/&quot;/g, "");
+        expect(withoutEntities).not.toMatch(/[<>"&]/);
+      })
+    );
   });
 });
 

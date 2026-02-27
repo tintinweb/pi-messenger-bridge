@@ -70,6 +70,7 @@
     "@types/node": "^20.0.0",
     "@types/node-telegram-bot-api": "^0.64.13",
     "@types/qrcode-terminal": "^0.12.2",
+    "fast-check": "^4.5.3",
     "typescript": "^5.0.0",
     "vitest": "^4.0.18"
   }
