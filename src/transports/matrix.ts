@@ -23,6 +23,7 @@ export class MatrixProvider implements ITransportProvider {
   private errorHandler?: (error: Error) => void;
   private botUserId?: string;
   private joinedRooms = new Set<string>();
+  private roomMemberCount = new Map<string, number>();
   private connectedAt = 0;
 
   constructor(
@@ -128,12 +129,17 @@ export class MatrixProvider implements ITransportProvider {
     // Cache bot user ID (never changes)
     this.botUserId = await this.client.getUserId();
 
-    // Track room membership
+    // Track room membership and member counts
     this.client.on("room.join", (roomId: string) => {
       this.joinedRooms.add(roomId);
+      // Refresh member count asynchronously
+      this.client?.getJoinedRoomMembers(roomId)
+        .then(members => this.roomMemberCount.set(roomId, members.length))
+        .catch(() => {});
     });
     this.client.on("room.leave", (roomId: string) => {
       this.joinedRooms.delete(roomId);
+      this.roomMemberCount.delete(roomId);
     });
 
     // Handle incoming messages
@@ -150,13 +156,26 @@ export class MatrixProvider implements ITransportProvider {
     try {
       await this.client.start();
     } catch (error) {
+      // Clean up dangling state so connect() can be retried
+      this.client = undefined;
+      this.botUserId = undefined;
+      this.joinedRooms.clear();
+      this.roomMemberCount.clear();
       console.error("[Matrix] Failed to connect:", error);
       throw error;
     }
 
-    // Seed joined rooms cache and record connection time
+    // Seed joined rooms and member count caches
     const rooms = await this.client.getJoinedRooms();
     this.joinedRooms = new Set(rooms);
+    await Promise.all(rooms.map(async (roomId) => {
+      try {
+        const members = await this.client!.getJoinedRoomMembers(roomId);
+        this.roomMemberCount.set(roomId, members.length);
+      } catch {
+        // Will be fetched on first message if needed
+      }
+    }));
     this.connectedAt = Date.now();
     this._isConnected = true;
     const cryptoStatus = cryptoProvider ? "E2EE enabled" : "E2EE disabled";
@@ -171,6 +190,7 @@ export class MatrixProvider implements ITransportProvider {
     this.client = undefined;
     this.botUserId = undefined;
     this.joinedRooms.clear();
+    this.roomMemberCount.clear();
     this.connectedAt = 0;
     console.log("[Matrix] Disconnected");
   }
@@ -236,14 +256,19 @@ export class MatrixProvider implements ITransportProvider {
     const messageText = content.body;
     const messageId = event.event_id;
 
-    // Determine if group chat by checking room member count
-    let isGroupChat = false;
-    try {
-      const members = await this.client.getJoinedRoomMembers(roomId);
-      isGroupChat = members.length > 2;
-    } catch {
-      // Default to false if we can't check
+    // Determine if group chat from cached member count (no API call per message)
+    let memberCount = this.roomMemberCount.get(roomId);
+    if (memberCount === undefined) {
+      // Cache miss — fetch once and cache
+      try {
+        const members = await this.client.getJoinedRoomMembers(roomId);
+        memberCount = members.length;
+        this.roomMemberCount.set(roomId, memberCount);
+      } catch {
+        memberCount = 2; // Default to DM if we can't check
+      }
     }
+    const isGroupChat = memberCount > 2;
 
     // Check if bot was mentioned
     let wasMentioned = false;

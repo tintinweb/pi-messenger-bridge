@@ -2,17 +2,26 @@
 
 ## Scope
 
-Only our additions: `src/transports/matrix.ts`, Matrix-related changes in `src/index.ts` and `src/types.ts`.
-Upstream transport code (telegram, discord, slack, whatsapp) is out of scope.
+Only our additions on branch `add-matrix-transport` (5 commits, `0e27f1d..f58389b`).
+Base: `56e582f` ("more transports").
+Upstream code (telegram, discord, slack, whatsapp, auth, manager) is out of scope.
+
+## TypeScript strict mode
+
+`tsconfig.json` has `"strict": true`. Phase 8 (types) auto-skipped per skill rules.
 
 ## Action items
 
 | # | Finding | Action | Rationale |
 |---|---------|--------|-----------|
-| 1 | DRY: formatForMatrix/formatForTelegram | **Accept** | Upstream code, divergent edge cases |
+| 1 | DRY: formatForMatrix scaffolding | **Accept** | Upstream code, divergent edge cases, out of scope |
 | 2 | DRY: sendMessage wrapper | **Accept** | Interface design, not ours |
-| 3 | YAGNI: formattedBody branch | **Fix** | Simple, no behavior change |
-| 4 | Bug: getJoinedRooms() per message | **Fix** | Performance — API call per event is excessive |
-| 5 | Bug: getUserId() per message | **Fix** | Easy cache, called on every event |
-| 6 | Bug: no stale event filtering | **Fix** | Prevents processing old messages on restart |
-| 7 | hasMarkdown regex too broad | **Accept** | Harmless false positives |
+| 4 | Bug: getJoinedRoomMembers() per message | **Fix** | Network call per event; same class as already-fixed getUserId()/getJoinedRooms() |
+| 5 | Bug: connect() leaks client on failure | **Fix** | Dangling client + handlers on transient network failure |
+| 6 | Auth ordering | **Accept** | Correct, matches all transports |
+
+## Scope lock
+
+This pass will:
+1. Cache room member counts to eliminate per-message API call (#4)
+2. Add cleanup in connect() catch block to prevent client leak (#5)
