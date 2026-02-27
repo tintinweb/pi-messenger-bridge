@@ -310,8 +310,7 @@ export default function (pi: ExtensionAPI): void {
         transportPromises.push(
           Promise.resolve().then(() => {
             const matrixProvider = new MatrixProvider(
-              config.matrix!.homeserverUrl,
-              config.matrix!.accessToken,
+              config.matrix!,
               auth
             );
             transportManager.addTransport(matrixProvider);
@@ -583,7 +582,7 @@ export default function (pi: ExtensionAPI): void {
 
             config.matrix = { homeserverUrl, accessToken: matrixAccessToken };
             saveConfig(config);
-            const matrixProvider = new MatrixProvider(homeserverUrl, matrixAccessToken, auth);
+            const matrixProvider = new MatrixProvider(config.matrix!, auth);
             transportManager.addTransport(matrixProvider);
             try {
               await matrixProvider.connect();

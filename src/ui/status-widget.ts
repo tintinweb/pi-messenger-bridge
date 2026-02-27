@@ -5,6 +5,7 @@ const TRANSPORT_ABBREV: Record<string, string> = {
   whatsapp: "wa",
   slack: "slk",
   discord: "dc",
+  matrix: "mx",
 };
 
 /**

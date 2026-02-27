@@ -24,8 +24,7 @@ export class MatrixProvider implements ITransportProvider {
   private connectedAt = 0;
 
   constructor(
-    private homeserverUrl: string,
-    private accessToken: string,
+    private config: { homeserverUrl: string; accessToken: string },
     private auth: ChallengeAuth
   ) {}
 
@@ -52,14 +51,14 @@ export class MatrixProvider implements ITransportProvider {
     // Protect code blocks
     const codeBlocks: string[] = [];
     html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_, lang, code) => {
-      codeBlocks.push(`<pre><code${lang ? ` class="language-${lang}"` : ""}>${escapeHtml(code.trimEnd())}</code></pre>`);
+      codeBlocks.push(`<pre><code${lang ? ` class="language-${lang}"` : ""}>${this.escapeHtml(code.trimEnd())}</code></pre>`);
       return `__CODEBLOCK_${codeBlocks.length - 1}__`;
     });
 
     // Protect inline code
     const inlineCodes: string[] = [];
     html = html.replace(/`([^`]+)`/g, (_, code) => {
-      inlineCodes.push(`<code>${escapeHtml(code)}</code>`);
+      inlineCodes.push(`<code>${this.escapeHtml(code)}</code>`);
       return `__INLINECODE_${inlineCodes.length - 1}__`;
     });
 
@@ -82,6 +81,12 @@ export class MatrixProvider implements ITransportProvider {
   async connect(): Promise<void> {
     if (this._isConnected) return;
 
+    const { homeserverUrl, accessToken } = this.config;
+
+    if (!homeserverUrl || !accessToken) {
+      throw new Error("Matrix homeserver URL and access token required");
+    }
+
     const storagePath = path.join(
       os.homedir(),
       ".pi",
@@ -90,8 +95,8 @@ export class MatrixProvider implements ITransportProvider {
     const storage = new SimpleFsStorageProvider(storagePath);
 
     this.client = new MatrixClient(
-      this.homeserverUrl,
-      this.accessToken,
+      homeserverUrl,
+      accessToken,
       storage
     );
 
@@ -120,13 +125,19 @@ export class MatrixProvider implements ITransportProvider {
       }
     });
 
-    await this.client.start();
+    try {
+      await this.client.start();
+    } catch (error) {
+      console.error("[Matrix] Failed to connect:", error);
+      throw error;
+    }
 
     // Seed joined rooms cache and record connection time
     const rooms = await this.client.getJoinedRooms();
     this.joinedRooms = new Set(rooms);
     this.connectedAt = Date.now();
     this._isConnected = true;
+    console.log(`✅ Matrix connected as ${this.botUserId} (${rooms.length} rooms)`);
   }
 
   async disconnect(): Promise<void> {
@@ -138,6 +149,7 @@ export class MatrixProvider implements ITransportProvider {
     this.botUserId = undefined;
     this.joinedRooms.clear();
     this.connectedAt = 0;
+    console.log("[Matrix] Disconnected");
   }
 
   async sendMessage(chatId: string, text: string): Promise<void> {
@@ -272,12 +284,12 @@ export class MatrixProvider implements ITransportProvider {
       this.messageHandler(externalMessage);
     }
   }
-}
 
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
 }
