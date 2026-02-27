@@ -170,6 +170,14 @@ export class MatrixProvider implements ITransportProvider {
     // Ignore edits (we only process original messages)
     if (content["m.new_content"]) return;
 
+    // Verify bot is still in this room (skip events from left/kicked rooms)
+    try {
+      const joinedRooms = await this.client.getJoinedRooms();
+      if (!joinedRooms.includes(roomId)) return;
+    } catch {
+      return; // Can't verify membership — skip
+    }
+
     const chatId = roomId;
     const userId = event.sender; // e.g. @user:matrix.org
     // Extract localpart as username
