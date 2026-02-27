@@ -4,7 +4,10 @@ import {
   AutojoinRoomsMixin,
   RustSdkCryptoStorageProvider,
   RustSdkCryptoStoreType,
+  LogService,
+  RichConsoleLogger,
 } from "matrix-bot-sdk";
+import type { ILogger } from "matrix-bot-sdk";
 import type { ITransportProvider } from "./interface.js";
 import type { ExternalMessage } from "../types.js";
 import type { ChallengeAuth } from "../auth/challenge-auth.js";
@@ -118,7 +121,31 @@ export class MatrixProvider implements ITransportProvider {
     });
 
     try {
+      // During initial sync the SDK replays historical events and tries to
+      // decrypt them. For E2EE rooms this produces two known error patterns:
+      //   1. "Decryption error" — old messages we don't have keys for
+      //   2. "M_NOT_FOUND"     — stale sync token references a purged event
+      // Our connectedAt filter skips these events anyway, so the errors are
+      // noise. A filtering logger suppresses only these specific patterns.
+      const defaultLogger = new RichConsoleLogger();
+      const syncFilterLogger: ILogger = {
+        info:  (mod, ...args) => defaultLogger.info(mod, ...args),
+        warn:  (mod, ...args) => defaultLogger.warn(mod, ...args),
+        debug: (mod, ...args) => defaultLogger.debug(mod, ...args),
+        trace: (mod, ...args) => defaultLogger.trace(mod, ...args),
+        error: (mod, ...args) => {
+          const msg = args.map(a => typeof a === "string" ? a : JSON.stringify(a)).join(" ");
+          if (mod === "MatrixClientLite" && msg.includes("Decryption error")) return;
+          if (mod === "MatrixHttpClient" && msg.includes("M_NOT_FOUND")) return;
+          defaultLogger.error(mod, ...args);
+        },
+      };
+      LogService.setLogger(syncFilterLogger);
+
       await this.client.start();
+
+      // Restore default logging — real errors after sync should not be filtered
+      LogService.setLogger(defaultLogger);
     } catch (error) {
       // Clean up dangling state so connect() can be retried
       this.client = undefined;
