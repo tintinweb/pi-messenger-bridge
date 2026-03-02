@@ -1,7 +1,7 @@
 {
   "name": "pi-messenger-bridge",
   "version": "0.2.1",
-  "description": "Bridge common messengers (Telegram, WhatsApp, Slack, Discord) into pi",
+  "description": "Bridge common messengers (Telegram, WhatsApp, Slack, Discord, Matrix) into pi",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "pi": {
@@ -25,6 +25,8 @@
     "whatsapp",
     "slack",
     "discord",
+    "matrix",
+    "element",
     "messenger",
     "bridge",
     "bot",
@@ -59,13 +61,17 @@
     "@slack/bolt": "^4.6.0",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "discord.js": "^14.25.1",
+    "matrix-bot-sdk": "^0.8.0",
     "node-telegram-bot-api": "^0.67.0",
     "qrcode-terminal": "^0.12.0"
   },
   "devDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.59.0",
     "@types/node": "^20.0.0",
     "@types/node-telegram-bot-api": "^0.64.13",
     "@types/qrcode-terminal": "^0.12.2",
-    "typescript": "^5.0.0"
+    "fast-check": "^4.5.3",
+    "typescript": "^5.0.0",
+    "vitest": "^4.0.18"
   }
 }

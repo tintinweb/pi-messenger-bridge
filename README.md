@@ -1,6 +1,6 @@
 # pi-messenger-bridge
 
-Bridge common messengers (Telegram, WhatsApp, Slack, Discord) into pi.
+Bridge common messengers (Telegram, WhatsApp, Slack, Discord, Matrix) into pi.
 
 Remote users can interact with your pi coding agent via their messenger app.
 
@@ -11,7 +11,7 @@ https://github.com/user-attachments/assets/cd64360e-e8cd-4820-a67f-bd127c5d6035
 ## Features
 
 - 🔐 Challenge-based authentication (6-digit codes)
-- 📱 Multi-messenger support (Telegram, WhatsApp, Slack, Discord)
+- 📱 Multi-messenger support (Telegram, WhatsApp, Slack, Discord, Matrix)
 - 🎯 Event-driven architecture (no polling loops)
 - 🔒 Trusted user management with transport-namespaced IDs
 - 📊 Live status widget (toggleable)
@@ -89,6 +89,28 @@ Or set via environment variable:
 export PI_DISCORD_TOKEN="your-bot-token"
 ```
 
+#### Matrix (Element X, Element Web, FluffyChat, etc.)
+
+Create a bot account on your Matrix homeserver, then get an access token.
+The easiest way is to log in with Element Web, then go to Settings → Help & About → Access Token.
+
+```bash
+/msg-bridge configure matrix <homeserver-url> <access-token>
+```
+
+For example:
+```bash
+/msg-bridge configure matrix https://matrix.org syt_your_access_token_here
+```
+
+Or set via environment variables:
+```bash
+export PI_MATRIX_HOMESERVER="https://matrix.org"
+export PI_MATRIX_ACCESS_TOKEN="syt_your_access_token_here"
+```
+
+The bot will auto-join any room it's invited to. Create a private room and invite the bot user to start chatting.
+
 ### 3. Connect
 
 ```bash
@@ -122,8 +144,9 @@ Example config:
   "whatsapp": { "authPath": "..." },
   "slack": { "botToken": "...", "appToken": "..." },
   "discord": { "token": "..." },
+  "matrix": { "homeserverUrl": "https://matrix.org", "accessToken": "syt_..." },
   "auth": {
-    "trustedUsers": ["telegram:123", "whatsapp:456"],
+    "trustedUsers": ["telegram:123", "whatsapp:456", "matrix:@user:matrix.org"],
     "adminUserId": "telegram:789"
   },
   "autoConnect": true,
@@ -141,6 +164,8 @@ Environment variables override file config:
 - `PI_SLACK_BOT_TOKEN` — Slack bot token (xoxb-...)
 - `PI_SLACK_APP_TOKEN` — Slack app token (xapp-...)
 - `PI_DISCORD_TOKEN` — Discord bot token
+- `PI_MATRIX_HOMESERVER` — Matrix homeserver URL (e.g. `https://matrix.org`)
+- `PI_MATRIX_ACCESS_TOKEN` — Matrix bot access token
 - `MSG_BRIDGE_DEBUG` — Enable debug logging (true/false)
 
 ## Security
@@ -148,6 +173,7 @@ Environment variables override file config:
 - Config file: `~/.pi/msg-bridge.json` (chmod 600 - owner read/write only)
 - Config directory: `~/.pi/` (chmod 700 - owner only)
 - WhatsApp auth: `~/.pi/msg-bridge-whatsapp-auth/` (chmod 700 - owner only)
+- Matrix sync state: `~/.pi/msg-bridge-matrix-store.json`
 - Environment variables take precedence over config file
 - Challenge-based authentication for all new users
 - Transport-namespaced user IDs prevent impersonation

@@ -5,6 +5,7 @@ import { TelegramProvider } from "./transports/telegram.js";
 import { WhatsAppProvider } from "./transports/whatsapp.js";
 import { SlackProvider } from "./transports/slack.js";
 import { DiscordProvider } from "./transports/discord.js";
+import { MatrixProvider } from "./transports/matrix.js";
 import { ChallengeAuth } from "./auth/challenge-auth.js";
 import { createStatusWidget } from "./ui/status-widget.js";
 import type { PendingRemoteChat, MsgBridgeConfig, TransportStatus } from "./types.js";
@@ -65,6 +66,12 @@ export default function (pi: ExtensionAPI): void {
     }
     if (process.env.PI_DISCORD_TOKEN) {
       config.discord = { token: process.env.PI_DISCORD_TOKEN };
+    }
+    if (process.env.PI_MATRIX_HOMESERVER && process.env.PI_MATRIX_ACCESS_TOKEN) {
+      config.matrix = {
+        homeserverUrl: process.env.PI_MATRIX_HOMESERVER,
+        accessToken: process.env.PI_MATRIX_ACCESS_TOKEN,
+      };
     }
 
     return config;
@@ -298,6 +305,19 @@ export default function (pi: ExtensionAPI): void {
         );
       }
 
+      // Auto-add Matrix if configured
+      if (config.matrix?.homeserverUrl && config.matrix?.accessToken) {
+        transportPromises.push(
+          Promise.resolve().then(() => {
+            const matrixProvider = new MatrixProvider(
+              config.matrix!,
+              auth
+            );
+            transportManager.addTransport(matrixProvider);
+          })
+        );
+      }
+
       // Wait for all transports to be initialized
       await Promise.all(transportPromises);
 
@@ -424,6 +444,8 @@ export default function (pi: ExtensionAPI): void {
           "                              Configure Telegram bot",
           "/msg-bridge configure whatsapp",
           "                              Configure WhatsApp (scan QR)",
+          "/msg-bridge configure matrix <homeserver-url> <access-token>",
+          "                              Configure Matrix (Element X, etc)",
           "/msg-bridge widget            Toggle status widget on/off",
           "",
           "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
@@ -546,6 +568,31 @@ export default function (pi: ExtensionAPI): void {
             }
             updateWidget();
             break;
+
+          case "matrix": {
+            // Expect: /msg-bridge configure matrix <homeserver-url> <access-token>
+            const matrixParts = token.split(/\s+/);
+            const homeserverUrl = matrixParts[0];
+            const matrixAccessToken = matrixParts.slice(1).join(" ");
+
+            if (!homeserverUrl || !matrixAccessToken) {
+              context.ui.notify("Usage: /msg-bridge configure matrix <homeserver-url> <access-token>", "error");
+              return;
+            }
+
+            config.matrix = { homeserverUrl, accessToken: matrixAccessToken };
+            saveConfig(config);
+            const matrixProvider = new MatrixProvider(config.matrix!, auth);
+            transportManager.addTransport(matrixProvider);
+            try {
+              await matrixProvider.connect();
+              context.ui.notify("✅ Matrix configured and connected", "info");
+            } catch (err) {
+              context.ui.notify(`⚠️ Matrix setup error: ${(err as Error).message}`, "error");
+            }
+            updateWidget();
+            break;
+          }
 
           default:
             context.ui.notify(`❌ Unknown platform: ${platform}`, "error");
