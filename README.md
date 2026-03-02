@@ -52,7 +52,9 @@ Configure WhatsApp (requires QR code scan):
 /msg-bridge configure whatsapp
 ```
 
-Scan the QR code with WhatsApp mobile app (Linked Devices).
+Scan the QR code with your WhatsApp mobile app (**Linked Devices → Link a device**).
+
+> **Note:** After linking, **send a message to your own phone number** in WhatsApp to activate the bridge.
 
 Or set custom auth path:
 ```bash
