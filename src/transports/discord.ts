@@ -50,6 +50,10 @@ export class DiscordProvider implements ITransportProvider {
         discord.GatewayIntentBits.DirectMessages,
         discord.GatewayIntentBits.MessageContent, // Privileged intent - must enable in Discord Developer Portal
       ],
+      partials: [
+        discord.Partials.Channel,
+        discord.Partials.Message,
+      ],
     });
 
     // Handle incoming messages
