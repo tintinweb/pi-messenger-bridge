@@ -36,6 +36,13 @@ export interface ITransportProvider {
   sendTyping(chatId: string): Promise<void>;
 
   /**
+   * Optional per-message processing indicator.
+   * Transports that support message reactions can use this to mark an
+   * inbound message as being processed, then clear it when pi is idle.
+   */
+  setMessageProcessing?(chatId: string, messageId: string, processing: boolean): Promise<void>;
+
+  /**
    * Register callback for incoming messages
    * @param handler - Message handler function
    */

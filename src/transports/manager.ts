@@ -95,6 +95,21 @@ export class TransportManager {
   }
 
   /**
+   * Set or clear a per-message processing indicator, if the transport supports it.
+   */
+  async setMessageProcessing(
+    chatId: string,
+    transportType: string,
+    messageId: string,
+    processing: boolean
+  ): Promise<void> {
+    const transport = this.transports.get(transportType);
+    if (transport?.isConnected && transport.setMessageProcessing) {
+      await transport.setMessageProcessing(chatId, messageId, processing);
+    }
+  }
+
+  /**
    * Register handler for incoming messages from all transports
    */
   onMessage(handler: (message: ExternalMessage) => void): void {

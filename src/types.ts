@@ -1,6 +1,15 @@
 /**
  * External message received from a messenger transport
  */
+export interface ExternalImageAttachment {
+  /** Base64-encoded image bytes */
+  data: string;
+  /** Image MIME type, e.g. image/png */
+  mimeType: string;
+  /** Optional source filename or title */
+  name?: string;
+}
+
 export interface ExternalMessage {
   /** Unique chat/channel identifier */
   chatId: string;
@@ -8,6 +17,8 @@ export interface ExternalMessage {
   transport: string;
   /** Message content/text */
   content: string;
+  /** Image attachments to send to the model */
+  images?: ExternalImageAttachment[];
   /** Sender username */
   username: string;
   /** Sender user ID */
@@ -35,6 +46,8 @@ export interface MsgBridgeConfig {
   slack?: {
     botToken: string;
     appToken: string;
+    /** Add a :brain: reaction to Slack messages while pi is processing them. Defaults to false. */
+    brainReaction?: boolean;
   };
   discord?: {
     token: string;

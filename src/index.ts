@@ -1,4 +1,4 @@
-import type { AssistantMessage } from "@earendil-works/pi-ai";
+import type { AssistantMessage, ImageContent, TextContent } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import * as fs from "fs";
 import * as os from "os";
@@ -129,7 +129,8 @@ export default function (pi: ExtensionAPI): void {
       if (config.slack?.botToken && config.slack?.appToken) {
         transportPromises.push(
           Promise.resolve().then(() => {
-            const slackProvider = new SlackProvider(config.slack!, auth);
+            const slackConfig = { ...config.slack!, debug: config.debug };
+            const slackProvider = new SlackProvider(slackConfig, auth);
             transportManager.addTransport(slackProvider);
           })
         );
@@ -184,7 +185,19 @@ export default function (pi: ExtensionAPI): void {
       };
 
       const taggedMessage = `[📱 @${msg.username} via ${msg.transport}]: ${msg.content}`;
-      pi.sendUserMessage(taggedMessage, { deliverAs: "followUp" });
+      if (msg.images?.length) {
+        const content: (TextContent | ImageContent)[] = [
+          { type: "text", text: taggedMessage },
+          ...msg.images.map((image) => ({
+            type: "image" as const,
+            data: image.data,
+            mimeType: image.mimeType,
+          })),
+        ];
+        pi.sendUserMessage(content, { deliverAs: "followUp" });
+      } else {
+        pi.sendUserMessage(taggedMessage, { deliverAs: "followUp" });
+      }
     });
 
     transportManager.onError((err, transport) => {
@@ -247,14 +260,29 @@ export default function (pi: ExtensionAPI): void {
       }
 
       if (!hasPendingTools) {
+        await transportManager.setMessageProcessing(
+          pendingRemoteChat.chatId,
+          pendingRemoteChat.transport,
+          pendingRemoteChat.messageId,
+          false
+        );
         pendingRemoteChat = null;
       }
     } catch (err) {
-      const transport = pendingRemoteChat?.transport ?? "unknown";
+      const pending = pendingRemoteChat;
+      const transport = pending?.transport ?? "unknown";
       ctx.ui.notify(
         `Failed to send response to ${transport}: ${(err as Error).message}`,
         "error"
       );
+      if (pending) {
+        await transportManager.setMessageProcessing(
+          pending.chatId,
+          pending.transport,
+          pending.messageId,
+          false
+        );
+      }
       pendingRemoteChat = null;
     }
   });
@@ -410,9 +438,10 @@ export default function (pi: ExtensionAPI): void {
               return;
             }
 
-            config.slack = { botToken, appToken };
+            config.slack = { ...config.slack, botToken, appToken };
             saveConfig(config);
-            const slackProvider = new SlackProvider(config.slack, auth);
+            const slackConfig = { ...config.slack, debug: config.debug };
+            const slackProvider = new SlackProvider(slackConfig, auth);
             transportManager.addTransport(slackProvider);
             if (acquireLock()) {
               try {
