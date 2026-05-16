@@ -129,7 +129,8 @@ export default function (pi: ExtensionAPI): void {
       if (config.slack?.botToken && config.slack?.appToken) {
         transportPromises.push(
           Promise.resolve().then(() => {
-            const slackProvider = new SlackProvider(config.slack!, auth);
+            const slackConfig = { ...config.slack!, debug: config.debug };
+            const slackProvider = new SlackProvider(slackConfig, auth);
             transportManager.addTransport(slackProvider);
           })
         );
@@ -247,14 +248,29 @@ export default function (pi: ExtensionAPI): void {
       }
 
       if (!hasPendingTools) {
+        await transportManager.setMessageProcessing(
+          pendingRemoteChat.chatId,
+          pendingRemoteChat.transport,
+          pendingRemoteChat.messageId,
+          false
+        );
         pendingRemoteChat = null;
       }
     } catch (err) {
-      const transport = pendingRemoteChat?.transport ?? "unknown";
+      const pending = pendingRemoteChat;
+      const transport = pending?.transport ?? "unknown";
       ctx.ui.notify(
         `Failed to send response to ${transport}: ${(err as Error).message}`,
         "error"
       );
+      if (pending) {
+        await transportManager.setMessageProcessing(
+          pending.chatId,
+          pending.transport,
+          pending.messageId,
+          false
+        );
+      }
       pendingRemoteChat = null;
     }
   });
@@ -410,9 +426,10 @@ export default function (pi: ExtensionAPI): void {
               return;
             }
 
-            config.slack = { botToken, appToken };
+            config.slack = { ...config.slack, botToken, appToken };
             saveConfig(config);
-            const slackProvider = new SlackProvider(config.slack, auth);
+            const slackConfig = { ...config.slack, debug: config.debug };
+            const slackProvider = new SlackProvider(slackConfig, auth);
             transportManager.addTransport(slackProvider);
             if (acquireLock()) {
               try {

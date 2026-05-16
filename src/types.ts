@@ -35,6 +35,8 @@ export interface MsgBridgeConfig {
   slack?: {
     botToken: string;
     appToken: string;
+    /** Add a :brain: reaction to Slack messages while pi is processing them. Defaults to false. */
+    brainReaction?: boolean;
   };
   discord?: {
     token: string;

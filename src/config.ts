@@ -36,6 +36,7 @@ export function loadConfig(): MsgBridgeConfig {
   }
   if (process.env.PI_SLACK_BOT_TOKEN && process.env.PI_SLACK_APP_TOKEN) {
     config.slack = {
+      ...config.slack,
       botToken: process.env.PI_SLACK_BOT_TOKEN,
       appToken: process.env.PI_SLACK_APP_TOKEN,
     };

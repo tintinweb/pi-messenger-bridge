@@ -149,9 +149,10 @@ async function doConfigure(mctx: MenuContext): Promise<void> {
       if (!botToken) return;
       const appToken = await mctx.ui.input("Slack app token (xapp-...)");
       if (!appToken) return;
-      config.slack = { botToken, appToken };
+      config.slack = { ...config.slack, botToken, appToken };
       saveConfig(config);
-      const provider = new SlackProvider(config.slack, mctx.auth);
+      const slackConfig = { ...config.slack, debug: config.debug };
+      const provider = new SlackProvider(slackConfig, mctx.auth);
       mctx.transportManager.addTransport(provider);
       if (acquireLock()) {
         try {

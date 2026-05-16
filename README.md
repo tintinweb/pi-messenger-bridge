@@ -64,6 +64,29 @@ export PI_WHATSAPP_AUTH_PATH="/path/to/whatsapp-auth"
 
 Create a Slack app with Socket Mode enabled. You need both tokens:
 
+- Bot User OAuth Token: `xoxb-...`
+- App-Level Token: `xapp-...`
+
+Slack app setup:
+
+1. **Socket Mode**: enable Socket Mode.
+2. **App-Level Token**: create an app-level token with scope `connections:write`.
+3. **OAuth & Permissions → Bot Token Scopes**: add these scopes:
+   - `chat:write` — send replies
+   - `users:read` — resolve Slack user names
+   - `channels:read`, `groups:read`, `im:read`, `mpim:read` — inspect conversations and detect DMs vs channels
+   - `channels:history`, `groups:history`, `im:history`, `mpim:history` — receive messages from public channels, private channels, DMs, and multi-person DMs
+   - `reactions:write` — optional; only required if `slack.brainReaction` is enabled
+4. **Event Subscriptions → Subscribe to bot events**: add the message events you want the bridge to receive:
+   - `message.im` — direct messages
+   - `message.mpim` — multi-person DMs
+   - `message.channels` — public channels where the bot is a member
+   - `message.groups` — private channels where the bot is a member
+5. Install/reinstall the app to your workspace after changing scopes or events.
+6. Invite the bot to any channel where it should respond.
+
+Configure the bridge:
+
 ```bash
 /msg-bridge configure slack <bot-token> <app-token>
 ```
@@ -73,6 +96,8 @@ Or set via environment variables:
 export PI_SLACK_BOT_TOKEN="xoxb-..."
 export PI_SLACK_APP_TOKEN="xapp-..."
 ```
+
+Optional processing reaction: set `"brainReaction": true` under `slack` in `~/.pi/msg-bridge.json` to add a 🧠 reaction while pi is working, then remove it when pi is idle. This requires `reactions:write`.
 
 #### Discord
 
@@ -161,7 +186,7 @@ Example config:
 {
   "telegram": { "token": "..." },
   "whatsapp": { "authPath": "..." },
-  "slack": { "botToken": "...", "appToken": "..." },
+  "slack": { "botToken": "...", "appToken": "...", "brainReaction": false },
   "discord": { "token": "..." },
   "matrix": { "homeserverUrl": "https://matrix.org", "accessToken": "syt_...", "encryption": true },
   "auth": {
@@ -173,6 +198,10 @@ Example config:
   "debug": false
 }
 ```
+
+Slack-specific options:
+
+- `slack.brainReaction` — defaults to `false`. Set to `true` to opt in to adding/removing a 🧠 reaction on Slack messages while pi is processing them. Requires Slack `reactions:write` scope.
 
 ## Environment Variables
 

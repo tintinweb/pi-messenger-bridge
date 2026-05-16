@@ -21,6 +21,7 @@ export class SlackProvider implements ITransportProvider {
   private messageHandler?: (message: ExternalMessage) => void;
   private errorHandler?: (error: Error) => void;
   private lastProcessedMessageId = "";
+  private activeBrainReactions = new Set<string>();
   
   // Cache user info to avoid repeated API calls
   private userCache: Map<string, string> = new Map();
@@ -28,7 +29,7 @@ export class SlackProvider implements ITransportProvider {
   private channelCache: Map<string, { isDM: boolean; name?: string }> = new Map();
 
   constructor(
-    private config: { botToken: string; appToken: string },
+    private config: { botToken: string; appToken: string; brainReaction?: boolean; debug?: boolean },
     private auth: ChallengeAuth
   ) {}
 
@@ -164,6 +165,10 @@ export class SlackProvider implements ITransportProvider {
         return; // Auth handler already sent challenge/error messages
       }
 
+      if (this.config.brainReaction === true) {
+        await this.setMessageProcessing(channelId, ts, true);
+      }
+
       // Forward to message handler
       if (this.messageHandler) {
         const externalMessage: ExternalMessage = {
@@ -210,6 +215,7 @@ export class SlackProvider implements ITransportProvider {
     this._isConnected = false;
     this.userCache.clear();
     this.channelCache.clear();
+    this.activeBrainReactions.clear();
     console.log("[Slack] Disconnected");
   }
 
@@ -230,9 +236,58 @@ export class SlackProvider implements ITransportProvider {
   }
 
   async sendTyping(_chatId: string): Promise<void> {
-    // Slack doesn't support typing indicators for bots
-    // We could potentially add a reaction or use a "thinking" message
-    // but for now we'll just skip it
+    // Slack doesn't support typing indicators for bots.
+  }
+
+  async setMessageProcessing(chatId: string, messageId: string, processing: boolean): Promise<void> {
+    if (this.config.brainReaction !== true) return;
+
+    if (!this.app) {
+      throw new Error("Slack not connected");
+    }
+
+    const key = `${chatId}:${messageId}`;
+
+    try {
+      if (processing) {
+        if (this.config.debug) {
+          console.log(`[Slack] Adding brain reaction to message ${messageId} in ${chatId}`);
+        }
+        await this.app.client.reactions.add({
+          channel: chatId,
+          timestamp: messageId,
+          name: "brain",
+        });
+        this.activeBrainReactions.add(key);
+      } else {
+        if (!this.activeBrainReactions.has(key)) return;
+        if (this.config.debug) {
+          console.log(`[Slack] Removing brain reaction from message ${messageId} in ${chatId}`);
+        }
+        await this.app.client.reactions.remove({
+          channel: chatId,
+          timestamp: messageId,
+          name: "brain",
+        });
+        this.activeBrainReactions.delete(key);
+      }
+    } catch (error: any) {
+      const slackError = error?.data?.error || error?.message;
+
+      if (processing && slackError === "already_reacted") {
+        this.activeBrainReactions.add(key);
+        return;
+      }
+
+      if (!processing && (slackError === "no_reaction" || slackError === "item_not_found")) {
+        this.activeBrainReactions.delete(key);
+        return;
+      }
+
+      console.warn(
+        `[Slack] Failed to ${processing ? "add" : "remove"} brain reaction: ${slackError || error}`
+      );
+    }
   }
 
   onMessage(handler: (message: ExternalMessage) => void): void {
