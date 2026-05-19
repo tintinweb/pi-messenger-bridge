@@ -185,6 +185,11 @@ Environment variables override file config:
 - `PI_DISCORD_TOKEN` — Discord bot token
 - `PI_MATRIX_HOMESERVER` — Matrix homeserver URL (e.g. `https://matrix.org`)
 - `PI_MATRIX_ACCESS_TOKEN` — Matrix access token
+- `PI_MATRIX_SELF_CROSS_SIGN` — `1` (default when encryption is on) auto-bootstraps the bot's cross-signing identity on connect and signs its own device; `0`/`false` keeps the pre-patch behavior (manual Element-side trust); `reset` forces a fresh identity (invalidates prior trust).
+- `PI_MATRIX_ACCOUNT_PASSWORD` — Account password used for UIA if the homeserver requires it for `/keys/upload` cross-signing key upload. Prefer the file-based form below for non-interactive setups.
+- `PI_MATRIX_PASSWORD_FILE` — Path to a 0600 file containing the account password (default `~/.pi/pi-password.txt`). Used only if `PI_MATRIX_ACCOUNT_PASSWORD` isn't set.
+- `PI_MATRIX_RECOVERY_KEY` — SSSS recovery key (base58, as Element generates during "Set up Secure Backup"). When set, the bridge imports the *existing* cross-signing identity from SSSS instead of resetting it — preserves other Element-as-@bot sessions' verification. Takes precedence over the reset path.
+- `PI_MATRIX_RECOVERY_KEY_FILE` — Path to a 0600 file containing the recovery key (default `~/.pi/recovery-key.txt`). Used only if `PI_MATRIX_RECOVERY_KEY` isn't set.
 - `MSG_BRIDGE_DEBUG` — Enable debug logging (true/false)
 
 ## Security

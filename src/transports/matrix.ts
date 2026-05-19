@@ -12,6 +12,7 @@ import * as os from "os";
 import * as path from "path";
 import type { ChallengeAuth } from "../auth/challenge-auth.js";
 import type { ExternalMessage } from "../types.js";
+import { ensureSelfCrossSigned, readAccountPassword, readRecoveryKey } from "./matrix-crosssign.js";
 import type { ITransportProvider } from "./interface.js";
 import {
   extractUsername,
@@ -37,7 +38,14 @@ export class MatrixProvider implements ITransportProvider {
   private connectedAt = 0;
 
   constructor(
-    private config: { homeserverUrl: string; accessToken: string; encryption?: boolean },
+    private config: {
+      homeserverUrl: string;
+      accessToken: string;
+      encryption?: boolean;
+      selfCrossSign?: boolean | "reset";
+      accountPassword?: string;
+      recoveryKey?: string;
+    },
     private auth: ChallengeAuth
   ) {}
 
@@ -145,6 +153,24 @@ export class MatrixProvider implements ITransportProvider {
 
       // Restore default logging — real errors after sync should not be filtered
       LogService.setLogger(defaultLogger);
+
+      // Self-cross-sign on startup so users only have to verify the bot's master key
+      // once (from any Element session) instead of trusting every bot device manually.
+      // Default-on when encryption is enabled; opt out with selfCrossSign:false.
+      if (cryptoProvider && this.config.selfCrossSign !== false) {
+        const reset = this.config.selfCrossSign === "reset";
+        const password = this.config.accountPassword ?? readAccountPassword();
+        const recoveryKey = this.config.recoveryKey ?? readRecoveryKey();
+        try {
+          const result = await ensureSelfCrossSigned(this.client, { reset, password, recoveryKey });
+          if (result.status === "skipped" && result.reason) {
+            console.warn(`[Matrix] cross-sign skipped: ${result.reason}`);
+          }
+        } catch (e) {
+          // Non-fatal — keep the bridge running with an unverified device on failure.
+          console.warn(`[Matrix] cross-sign failed (non-fatal): ${(e as Error).message}`);
+        }
+      }
     } catch (error) {
       // Clean up dangling state so connect() can be retried
       this.client = undefined;

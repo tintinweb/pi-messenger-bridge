@@ -49,6 +49,22 @@ export function loadConfig(): MsgBridgeConfig {
       accessToken: process.env.PI_MATRIX_ACCESS_TOKEN,
     };
   }
+  // Cross-signing knobs can refine an existing matrix block without requiring the
+  // homeserver/token to also come from env (mixed file+env config is supported).
+  if (config.matrix) {
+    const xs = process.env.PI_MATRIX_SELF_CROSS_SIGN;
+    if (xs !== undefined) {
+      if (xs === "0" || xs.toLowerCase() === "false") config.matrix.selfCrossSign = false;
+      else if (xs === "reset") config.matrix.selfCrossSign = "reset";
+      else config.matrix.selfCrossSign = true;
+    }
+    if (process.env.PI_MATRIX_ACCOUNT_PASSWORD) {
+      config.matrix.accountPassword = process.env.PI_MATRIX_ACCOUNT_PASSWORD;
+    }
+    if (process.env.PI_MATRIX_RECOVERY_KEY) {
+      config.matrix.recoveryKey = process.env.PI_MATRIX_RECOVERY_KEY;
+    }
+  }
 
   return config;
 }
