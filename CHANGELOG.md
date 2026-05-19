@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Self-cross-signing bootstrap for matrix-bot-sdk bots — clears Element's "device not verified by its owner" red shield without per-device manual trust. Two paths chosen by which credential is supplied: SSSS recovery-key import (preferred — joins an Element-controlled cross-signing identity) via `PI_MATRIX_RECOVERY_KEY` / `~/.pi/recovery-key.txt`; or fresh-identity creation via `PI_MATRIX_SELF_CROSS_SIGN=reset` (UIA-via-password from `PI_MATRIX_ACCOUNT_PASSWORD` / `~/.pi/pi-password.txt`). Triggered automatically on Matrix connect when encryption is enabled; opt out with `selfCrossSign: false`. Force-pins `@matrix-org/matrix-sdk-crypto-nodejs` to `0.6.0` via npm `overrides`; matrix-bot-sdk's own `^0.4.0` pin silently drops the upload requests `bootstrapCrossSigning` generates.
+
+### Changed
+- Cross-signing helper refuses to silently create a fresh cross-signing identity when no recovery key is on disk. Operators must either provide a recovery key (preferred) or set `selfCrossSign: "reset"` (`PI_MATRIX_SELF_CROSS_SIGN=reset`) to opt into fresh-identity creation. Previously the helper would fall through to `bootstrapCrossSigning(false)` with no opt-in, generating a new server-side identity and orphaning any Element-generated Secure Backup.
+
+### Fixed
+- msg-bridge lock falsely held across container restarts because the liveness check (`process.kill(pid, 0)`) gives a false positive when the new container's PID namespace happens to reassign the same PID number to an unrelated process. Lock format extended to `<pid>:<startTime>:<instanceId>` where `startTime` is `/proc/<pid>/stat` field 22 (jiffies since boot); `acquireLock()` now requires both PID liveness AND `startTime` match to consider the lock held. Legacy 2-field locks are parseable but treated as unconditionally stale on first read after upgrade — they're exactly the format that had the bug, so one acquire-release cycle rewrites them in the new format.
+
 ## [0.4.0] - 2026-05-09
 
 ### Added

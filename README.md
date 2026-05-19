@@ -110,6 +110,15 @@ export PI_MATRIX_ACCESS_TOKEN="syt_..."
 
 E2EE is **on by default**. Verify the bot's device once from another Matrix client (Element, etc.) — until verified, encrypted rooms can't be decrypted in either direction.
 
+**Cross-signing setup (recommended).** Without further setup, every encrypted room shows a red "device not verified by its owner" shield on the bot's messages; each user has to manually emoji-verify the bot's device. To make a single one-click verification suffice instead, give the bridge an SSSS recovery key it can use to import an existing cross-signing identity:
+
+1. Log into Element (or Element X) as the bot account in an incognito window.
+2. **Settings → Security & Privacy → Set up Secure Backup → Generate a Security Key.** Copy the `EsT…` key.
+3. Write the key to `~/.pi/recovery-key.txt` (0600), or export it as `PI_MATRIX_RECOVERY_KEY`.
+4. Sign out of Element and (re)start pi. On connect the bridge fetches the encrypted master/self-signing/user-signing keys from the homeserver's account data, decrypts them with the recovery key, imports them locally, and signs its own device.
+
+Other users only need to verify the bot once from their own session afterwards. The bridge **refuses to silently create a fresh cross-signing identity** if no recovery key is provided — that would orphan any existing Element-side Secure Backup. Pass `PI_MATRIX_SELF_CROSS_SIGN=reset` instead to opt into bot-owned identity creation (useful for greenfield bots with no Element session of their own; requires `PI_MATRIX_ACCOUNT_PASSWORD` for UIA on the cross-signing-key upload).
+
 Set `"encryption": false` in the `matrix` config to disable — useful for non-encrypted rooms only, or to bypass crypto-store/server desync (e.g. `M_UNKNOWN: One time key … already exists`). **Caveat:** with E2EE off, the homeserver sees plaintext, and the bot can't participate in encrypted rooms at all.
 
 ### 3. Connect
@@ -185,7 +194,7 @@ Environment variables override file config:
 - `PI_DISCORD_TOKEN` — Discord bot token
 - `PI_MATRIX_HOMESERVER` — Matrix homeserver URL (e.g. `https://matrix.org`)
 - `PI_MATRIX_ACCESS_TOKEN` — Matrix access token
-- `PI_MATRIX_SELF_CROSS_SIGN` — `1` (default when encryption is on) auto-bootstraps the bot's cross-signing identity on connect and signs its own device; `0`/`false` keeps the pre-patch behavior (manual Element-side trust); `reset` forces a fresh identity (invalidates prior trust).
+- `PI_MATRIX_SELF_CROSS_SIGN` — `1` (default when encryption is on) imports the existing cross-signing identity from SSSS if `PI_MATRIX_RECOVERY_KEY` is set, then signs the bot's own device. If neither a recovery key nor `reset` is supplied, the bridge logs an error and leaves the device unsigned rather than silently generating a new identity (which would orphan any Element-side Secure Backup). `0`/`false` skips cross-signing entirely (manual Element-side per-device trust). `reset` opts into creating a fresh bot-owned identity (destroys any prior one; requires `PI_MATRIX_ACCOUNT_PASSWORD` for UIA on `/keys/device_signing/upload`).
 - `PI_MATRIX_ACCOUNT_PASSWORD` — Account password used for UIA if the homeserver requires it for `/keys/upload` cross-signing key upload. Prefer the file-based form below for non-interactive setups.
 - `PI_MATRIX_PASSWORD_FILE` — Path to a 0600 file containing the account password (default `~/.pi/pi-password.txt`). Used only if `PI_MATRIX_ACCOUNT_PASSWORD` isn't set.
 - `PI_MATRIX_RECOVERY_KEY` — SSSS recovery key (base58, as Element generates during "Set up Secure Backup"). When set, the bridge imports the *existing* cross-signing identity from SSSS instead of resetting it — preserves other Element-as-@bot sessions' verification. Takes precedence over the reset path.
