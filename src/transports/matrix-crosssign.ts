@@ -189,6 +189,27 @@ export async function ensureSelfCrossSigned(
   const status: CrossSigningStatus = await machine.crossSigningStatus();
   const alreadyHasIdentity = status.hasMaster && status.hasSelfSigning && status.hasUserSigning;
 
+  // Refuse to silently create a fresh cross-signing identity. Without this guard,
+  // a bot with no recoveryKey and no pre-existing local identity would run
+  // bootstrapCrossSigning(false), which generates fresh MSK/SSK/USK and uploads
+  // them — overwriting any Element-generated cross-signing identity already on
+  // the homeserver. That's what happened on @pi's first connect: the dist build
+  // predated the recovery-key path, no key was loaded, and the bot orphaned the
+  // operator's SSSS Secret Backup. Require an explicit opt-in via reset:true to
+  // create a fresh identity; otherwise demand a recovery key.
+  if (!alreadyHasIdentity && !opts.reset) {
+    const reason = opts.recoveryKey
+      ? "recoveryKey supplied but local identity import didn't run (importViaRecoveryKey threw earlier?)"
+      : "no recoveryKey on disk and reset not explicitly requested";
+    warn(
+      `[Matrix xsign] refusing to generate a fresh cross-signing identity. ${reason}. ` +
+      `Either (a) set PI_MATRIX_RECOVERY_KEY (or write to ~/.pi/recovery-key.txt) to import ` +
+      `an existing Secure Backup identity, or (b) set PI_MATRIX_SELF_CROSS_SIGN=reset to ` +
+      `explicitly create a new bot-owned identity (will destroy any existing one).`
+    );
+    return { status: "skipped", reason: reason };
+  }
+
   if (alreadyHasIdentity && !opts.reset) {
     // Confirm the homeserver's view matches: our device should be signed by our SSK.
     if (await isDeviceCrossSigned(client, botUserId)) {
