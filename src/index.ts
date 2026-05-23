@@ -28,30 +28,44 @@ export default function (pi: ExtensionAPI): void {
   let ctx: ExtensionContext;
 
   /**
+   * Safe wrapper for ctx.ui calls — catches stale context errors
+   * that occur after session replacement or reload.
+   */
+  function safeUi(fn: (c: ExtensionContext) => void): void {
+    try {
+      if (ctx) fn(ctx);
+    } catch {
+      // ctx is stale (session replaced/reloaded) — silently ignore
+    }
+  }
+
+  /**
    * Update status widget
    */
   function updateWidget(): void {
-    const config = loadConfig();
+    safeUi((c) => {
+      const config = loadConfig();
 
-    if (config.showWidget === false) {
-      ctx.ui.setWidget("msg-bridge-status", undefined);
-      return;
-    }
+      if (config.showWidget === false) {
+        c.ui.setWidget("msg-bridge-status", undefined);
+        return;
+      }
 
-    const stats = auth.getStats();
-    const transports: TransportStatus[] = transportManager
-      .getStatus()
-      .map((s) => ({
-        type: s.type,
-        connected: s.connected,
-      }));
+      const stats = auth.getStats();
+      const transports: TransportStatus[] = transportManager
+        .getStatus()
+        .map((s) => ({
+          type: s.type,
+          connected: s.connected,
+        }));
 
-    const widget = createStatusWidget(transports, stats.usersByTransport);
-    if (widget) {
-      ctx.ui.setWidget("msg-bridge-status", [widget]);
-    } else {
-      ctx.ui.setWidget("msg-bridge-status", undefined);
-    }
+      const widget = createStatusWidget(transports, stats.usersByTransport);
+      if (widget) {
+        c.ui.setWidget("msg-bridge-status", [widget]);
+      } else {
+        c.ui.setWidget("msg-bridge-status", undefined);
+      }
+    });
   }
 
   /**
@@ -73,13 +87,13 @@ export default function (pi: ExtensionAPI): void {
 
     auth = new ChallengeAuth(
       (code, username) => {
-        ctx.ui.notify(
+        safeUi((c) => c.ui.notify(
           `🔐 Challenge code for @${username}: ${code}`,
           "info"
-        );
+        ));
       },
       (message, level) => {
-        ctx.ui.notify(message, level);
+        safeUi((c) => c.ui.notify(message, level));
       },
       async (_chatId, _message) => {
         // Challenge notifications are sent via the transport's sendMessage
@@ -159,20 +173,20 @@ export default function (pi: ExtensionAPI): void {
       const transports = transportManager.getAllTransports();
       if (transports.length > 0 && config.autoConnect !== false) {
         if (!acquireLock()) {
-          ctx.ui.notify("ℹ️ msg-bridge: another instance is already connected — skipping auto-connect", "info");
+          safeUi((c) => c.ui.notify("ℹ️ msg-bridge: another instance is already connected — skipping auto-connect", "info"));
         } else {
           try {
             await transportManager.connectAll();
             updateWidget();
           } catch (err) {
             releaseLock();
-            ctx.ui.notify(`⚠️ Some transports failed to connect: ${(err as Error).message}`, "warning");
+            safeUi((c) => c.ui.notify(`⚠️ Some transports failed to connect: ${(err as Error).message}`, "warning"));
           }
         }
       }
     })().catch(err => {
       console.error("Transport initialization error:", err);
-      ctx.ui.notify(`❌ Transport initialization failed: ${err.message}`, "error");
+      safeUi((c) => c.ui.notify(`❌ Transport initialization failed: ${err.message}`, "error"));
     });
 
     transportManager.onMessage((msg) => {
@@ -188,7 +202,7 @@ export default function (pi: ExtensionAPI): void {
     });
 
     transportManager.onError((err, transport) => {
-      ctx.ui.notify(`❌ ${transport} error: ${err.message}`, "error");
+      safeUi((c) => c.ui.notify(`❌ ${transport} error: ${err.message}`, "error"));
     });
 
     updateWidget();
@@ -251,10 +265,10 @@ export default function (pi: ExtensionAPI): void {
       }
     } catch (err) {
       const transport = pendingRemoteChat?.transport ?? "unknown";
-      ctx.ui.notify(
+      safeUi((c) => c.ui.notify(
         `Failed to send response to ${transport}: ${(err as Error).message}`,
         "error"
-      );
+      ));
       pendingRemoteChat = null;
     }
   });
