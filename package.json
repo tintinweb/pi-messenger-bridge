@@ -12,8 +12,8 @@
     "image": "https://github.com/tintinweb/pi-messenger-bridge/raw/master/media/screenshot.png"
   },
   "scripts": {
-    "build": "tsc",
-    "watch": "tsc --watch",
+    "build": "tsdown",
+    "watch": "tsdown --watch",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run lint && npm run typecheck && npm run build",
     "typecheck": "tsc --noEmit",
@@ -50,7 +50,7 @@
   },
   "homepage": "https://github.com/tintinweb/pi-messenger-bridge#readme",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   },
   "files": [
     "dist",
@@ -77,6 +77,7 @@
     "@types/node-telegram-bot-api": "^0.64.14",
     "@types/qrcode-terminal": "^0.12.2",
     "fast-check": "^4.5.3",
+    "tsdown": "^0.22.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.5"
   }
