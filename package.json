@@ -13,6 +13,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "prepare": "npm run build",
     "watch": "tsc --watch",
     "clean": "rm -rf dist",
     "prepublishOnly": "npm run lint && npm run typecheck && npm run build",

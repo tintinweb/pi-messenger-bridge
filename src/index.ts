@@ -181,6 +181,7 @@ export default function (pi: ExtensionAPI): void {
         transport: msg.transport,
         username: msg.username,
         messageId: msg.messageId,
+        threadId: msg.threadId,
       };
 
       const taggedMessage = `[📱 @${msg.username} via ${msg.transport}]: ${msg.content}`;
@@ -242,7 +243,8 @@ export default function (pi: ExtensionAPI): void {
         await transportManager.sendMessage(
           pendingRemoteChat.chatId,
           pendingRemoteChat.transport,
-          chunk
+          chunk,
+          pendingRemoteChat.threadId
         );
       }
 

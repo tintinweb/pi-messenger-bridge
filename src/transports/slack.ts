@@ -79,6 +79,11 @@ export class SlackProvider implements ITransportProvider {
       const channelId = message.channel;
       const text = message.text;
       const ts = message.ts;
+      // Anchor replies to the triggering message's thread. If the message is
+      // already inside a thread, keep replying in that same thread (thread_ts)
+      // instead of spawning a sibling; otherwise the message's own ts is the anchor.
+      // Bolt's narrowed message type may not expose thread_ts, so cast.
+      const threadTs = (message as any).thread_ts ?? ts;
 
       // Filter out duplicate messages
       if (ts === this.lastProcessedMessageId) {
@@ -176,6 +181,8 @@ export class SlackProvider implements ITransportProvider {
           messageId: ts,
           isGroupChat,
           wasMentioned,
+          // Thread replies in channels only; DMs stay flat.
+          threadId: isGroupChat ? threadTs : undefined,
         };
 
         this.messageHandler(externalMessage);
@@ -213,7 +220,7 @@ export class SlackProvider implements ITransportProvider {
     console.log("[Slack] Disconnected");
   }
 
-  async sendMessage(chatId: string, text: string): Promise<void> {
+  async sendMessage(chatId: string, text: string, threadId?: string): Promise<void> {
     if (!this.app) {
       throw new Error("Slack not connected");
     }
@@ -223,6 +230,7 @@ export class SlackProvider implements ITransportProvider {
       await this.app.client.chat.postMessage({
         channel: chatId,
         text: text,
+        ...(threadId ? { thread_ts: threadId } : {}),
       });
     } catch (error) {
       throw new Error(`Slack send failed: ${(error as Error).message}`);
