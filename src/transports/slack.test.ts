@@ -46,3 +46,74 @@ describe("SlackProvider.sendMessage", () => {
     expect(payload).toMatchObject({ channel: "C123", text: "hi" });
   });
 });
+
+describe("SlackProvider admin slash commands", () => {
+  function makeCommandHarness(trusted = true, isDM = true) {
+    const auth = new ChallengeAuth(
+      () => {},
+      () => {},
+    );
+    if (trusted) auth.loadFromConfig({ trustedUsers: ["slack:U123"] });
+    const provider = new SlackProvider(
+      { botToken: "xoxb-test", appToken: "xapp-test" },
+      auth,
+    );
+    const ack = vi.fn().mockResolvedValue(undefined);
+    const respond = vi.fn().mockResolvedValue(undefined);
+    const client = {
+      conversations: {
+        info: vi.fn().mockResolvedValue({ channel: { is_im: isDM, name: isDM ? undefined : "general" } }),
+      },
+    };
+    return { provider, ack, respond, client };
+  }
+
+  it("acknowledges and dispatches a trusted DM /trusted command", async () => {
+    const { provider, ack, respond, client } = makeCommandHarness();
+
+    await (provider as any).handleAdminSlashCommand({
+      command: { command: "/trusted", text: "", channel_id: "D123", user_id: "U123", user_name: "Ryan" },
+      ack,
+      respond,
+      client,
+    });
+
+    expect(ack).toHaveBeenCalledTimes(1);
+    expect(respond).toHaveBeenCalledWith(expect.objectContaining({
+      response_type: "ephemeral",
+      text: expect.stringContaining("Trusted users (1)"),
+    }));
+  });
+
+  it("rejects admin slash commands outside a DM", async () => {
+    const { provider, ack, respond, client } = makeCommandHarness(true, false);
+
+    await (provider as any).handleAdminSlashCommand({
+      command: { command: "/channels", text: "", channel_id: "C123", user_id: "U123", user_name: "Ryan" },
+      ack,
+      respond,
+      client,
+    });
+
+    expect(ack).toHaveBeenCalledTimes(1);
+    expect(respond).toHaveBeenCalledWith(expect.objectContaining({
+      text: expect.stringContaining("DM-only"),
+    }));
+  });
+
+  it("starts challenge auth for an untrusted DM command", async () => {
+    const { provider, ack, respond, client } = makeCommandHarness(false);
+
+    await (provider as any).handleAdminSlashCommand({
+      command: { command: "/help", text: "", channel_id: "D123", user_id: "U123", user_name: "Ryan" },
+      ack,
+      respond,
+      client,
+    });
+
+    expect(ack).toHaveBeenCalledTimes(1);
+    expect(respond).toHaveBeenCalledWith(expect.objectContaining({
+      text: expect.stringContaining("6-digit code"),
+    }));
+  });
+});
