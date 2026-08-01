@@ -26,8 +26,9 @@ export interface ITransportProvider {
    * Send a text message to a chat
    * @param chatId - Chat/channel identifier
    * @param text - Message content
+   * @param threadId - Optional thread anchor to reply under (e.g. Slack thread_ts); omitted for flat replies
    */
-  sendMessage(chatId: string, text: string): Promise<void>;
+  sendMessage(chatId: string, text: string, threadId?: string): Promise<void>;
 
   /**
    * Send typing indicator to a chat

@@ -63,6 +63,24 @@ export class SlackProvider implements ITransportProvider {
       console.warn("[Slack] Could not get bot info:", e);
     }
 
+    // Register Slack-native slash commands for the same admin surface that
+    // message-based DMs use. The app manifest declares these so they appear in
+    // Slack's command picker; Socket Mode delivers invocations here.
+    const adminCommands = [
+      "/help",
+      "/trusted",
+      "/revoke",
+      "/channels",
+      "/enable",
+      "/disable",
+      "/toggletools",
+    ];
+    for (const commandName of adminCommands) {
+      this.app.command(commandName, async (args: any) => {
+        await this.handleAdminSlashCommand(args);
+      });
+    }
+
     // Listen for all messages
     this.app.message(async ({ message, client }: any) => {
       // Skip bot messages, message edits, deletes, etc.
@@ -79,6 +97,11 @@ export class SlackProvider implements ITransportProvider {
       const channelId = message.channel;
       const text = message.text;
       const ts = message.ts;
+      // Anchor replies to the triggering message's thread. If the message is
+      // already inside a thread, keep replying in that same thread (thread_ts)
+      // instead of spawning a sibling; otherwise the message's own ts is the anchor.
+      // Bolt's narrowed message type may not expose thread_ts, so cast.
+      const threadTs = (message as any).thread_ts ?? ts;
 
       // Filter out duplicate messages
       if (ts === this.lastProcessedMessageId) {
@@ -176,6 +199,8 @@ export class SlackProvider implements ITransportProvider {
           messageId: ts,
           isGroupChat,
           wasMentioned,
+          // Thread replies in channels only; DMs stay flat.
+          threadId: isGroupChat ? threadTs : undefined,
         };
 
         this.messageHandler(externalMessage);
@@ -198,6 +223,62 @@ export class SlackProvider implements ITransportProvider {
     }
   }
 
+  private async handleAdminSlashCommand({ command, ack, respond, client }: any): Promise<void> {
+    await ack();
+
+    const channelId = command.channel_id;
+    const userId = command.user_id;
+    const username = command.user_name || userId;
+    const args = command.text?.trim();
+    const text = args ? `${command.command} ${args}` : command.command;
+
+    let channelInfo = this.channelCache.get(channelId);
+    if (!channelInfo) {
+      try {
+        const convInfo = await client.conversations.info({ channel: channelId });
+        const conv = convInfo.channel;
+        const isDM = conv?.is_im === true || conv?.is_mpim === true;
+        const name = conv?.name || (isDM ? "DM" : channelId);
+        channelInfo = { isDM, name };
+        this.channelCache.set(channelId, channelInfo);
+      } catch {
+        channelInfo = { isDM: true };
+        this.channelCache.set(channelId, channelInfo);
+      }
+    }
+
+    const reply = async (messageText: string) => {
+      await respond({ text: messageText, response_type: "ephemeral" });
+    };
+
+    if (!channelInfo.isDM) {
+      await reply("Admin commands are DM-only. Open a direct message with the bot and try again.");
+      return;
+    }
+
+    const isAuthorized = await this.auth.checkAuthorization(
+      userId,
+      channelId,
+      username,
+      false,
+      false,
+      async (_cId: string, messageText: string) => await reply(messageText),
+      this.type
+    );
+    if (!isAuthorized) return;
+
+    const handled = await this.auth.handleAdminCommand(
+      text,
+      channelId,
+      userId,
+      async (messageText) => await reply(messageText),
+      this.type
+    );
+    if (!handled) {
+      await reply("Unknown admin command. Use `/help` for the command list.");
+    }
+  }
+
   async disconnect(): Promise<void> {
     if (this.app) {
       try {
@@ -213,7 +294,7 @@ export class SlackProvider implements ITransportProvider {
     console.log("[Slack] Disconnected");
   }
 
-  async sendMessage(chatId: string, text: string): Promise<void> {
+  async sendMessage(chatId: string, text: string, threadId?: string): Promise<void> {
     if (!this.app) {
       throw new Error("Slack not connected");
     }
@@ -223,6 +304,7 @@ export class SlackProvider implements ITransportProvider {
       await this.app.client.chat.postMessage({
         channel: chatId,
         text: text,
+        ...(threadId ? { thread_ts: threadId } : {}),
       });
     } catch (error) {
       throw new Error(`Slack send failed: ${(error as Error).message}`);

@@ -20,6 +20,8 @@ export interface ExternalMessage {
   isGroupChat: boolean;
   /** Was the bot mentioned? (for group chats) */
   wasMentioned?: boolean;
+  /** Thread anchor to reply under (e.g. Slack thread_ts ?? ts); undefined for flat replies (DMs) */
+  threadId?: string;
 }
 
 /**
@@ -63,6 +65,8 @@ export interface PendingRemoteChat {
   transport: string;
   username: string;
   messageId: string;
+  /** Thread anchor to reply under; undefined for flat replies (DMs) */
+  threadId?: string;
 }
 
 /**
