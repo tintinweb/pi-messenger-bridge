@@ -1,6 +1,7 @@
 import type { ChallengeAuth } from "../auth/challenge-auth.js";
 import type { ExternalMessage } from "../types.js";
 import type { ITransportProvider } from "./interface.js";
+import { formatForSlack } from "./slack-utils.js";
 
 // Dynamic import for ESM modules
 type App = any;
@@ -222,7 +223,7 @@ export class SlackProvider implements ITransportProvider {
     try {
       await this.app.client.chat.postMessage({
         channel: chatId,
-        text: text,
+        text: formatForSlack(text),
       });
     } catch (error) {
       throw new Error(`Slack send failed: ${(error as Error).message}`);
