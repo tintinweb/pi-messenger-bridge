@@ -1,4 +1,5 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
+import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import * as fs from "fs";
 import * as os from "os";
@@ -286,6 +287,61 @@ export default function (pi: ExtensionAPI): void {
   pi.on("session_shutdown", async (_event, _context) => {
     await transportManager.disconnectAll();
     releaseLock();
+  });
+
+  /**
+   * Tool: let the agent post an existing local file into the active remote Slack chat.
+   */
+  pi.registerTool({
+    name: "slack_upload_file",
+    label: "Upload file to Slack",
+    description:
+      "Upload an existing local file to the Slack conversation currently in progress (e.g. a screenshot, " +
+      "or a file the user attached earlier in this conversation and was saved locally). Only works while " +
+      "replying to a remote Slack message.",
+    promptSnippet: "slack_upload_file — post a local file to the active Slack chat",
+    parameters: Type.Object({
+      filePath: Type.String({ description: "Absolute or relative path to an existing local file to upload." }),
+      comment: Type.Optional(Type.String({ description: "Optional caption to post alongside the file." })),
+    }),
+    execute: async (_toolCallId, params) => {
+      if (!pendingRemoteChat || pendingRemoteChat.transport !== "slack") {
+        return {
+          content: [{ type: "text", text: "No active Slack conversation to upload to." }],
+          details: undefined,
+          isError: true,
+        };
+      }
+
+      const slack = transportManager.getTransport("slack") as SlackProvider | undefined;
+      if (!slack) {
+        return {
+          content: [{ type: "text", text: "Slack transport is not available." }],
+          details: undefined,
+          isError: true,
+        };
+      }
+
+      try {
+        const config = loadConfig();
+        const mirrorThreads = config.slackMirrorThreads !== false;
+        await slack.uploadFile(pendingRemoteChat.chatId, params.filePath, {
+          comment: params.comment,
+          threadTs: mirrorThreads ? pendingRemoteChat.threadTs : undefined,
+        });
+        return {
+          content: [{ type: "text", text: `Uploaded ${params.filePath} to Slack.` }],
+          details: undefined,
+          isError: false,
+        };
+      } catch (err) {
+        return {
+          content: [{ type: "text", text: `Failed to upload file: ${(err as Error).message}` }],
+          details: undefined,
+          isError: true,
+        };
+      }
+    },
   });
 
   /**

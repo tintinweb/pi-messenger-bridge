@@ -76,6 +76,8 @@ export PI_SLACK_APP_TOKEN="xapp-..."
 
 Your bot token needs the `reactions:write` scope — the bridge reacts to a message with ⏳ while it's working and removes the reaction once the reply is sent, since Slack has no native typing indicator for bots.
 
+It also needs the `files:read` scope to download files users attach in Slack (saved locally to `~/.pi/msg-bridge-uploads/` so the agent can inspect them with its own tools), and `files:write` for the `slack_upload_file` tool, which lets the agent post an existing local file back into the conversation.
+
 #### Discord
 
 1. Create a new application in the [Developer Portal](https://discord.com/developers/applications)
