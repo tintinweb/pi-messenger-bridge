@@ -203,7 +203,8 @@ export default function (pi: ExtensionAPI): void {
       try {
         await transportManager.sendTyping(
           pendingRemoteChat.chatId,
-          pendingRemoteChat.transport
+          pendingRemoteChat.transport,
+          pendingRemoteChat.messageId
         );
       } catch (_err) {
         // Ignore typing indicator errors
@@ -251,6 +252,11 @@ export default function (pi: ExtensionAPI): void {
       }
 
       if (!hasPendingTools) {
+        await transportManager.clearTyping(
+          pendingRemoteChat.chatId,
+          pendingRemoteChat.transport,
+          pendingRemoteChat.messageId
+        );
         pendingRemoteChat = null;
       }
     } catch (err) {
@@ -259,6 +265,17 @@ export default function (pi: ExtensionAPI): void {
         `Failed to send response to ${transport}: ${(err as Error).message}`,
         "error"
       );
+      if (pendingRemoteChat) {
+        try {
+          await transportManager.clearTyping(
+            pendingRemoteChat.chatId,
+            pendingRemoteChat.transport,
+            pendingRemoteChat.messageId
+          );
+        } catch (_clearErr) {
+          // Ignore — best-effort cleanup
+        }
+      }
       pendingRemoteChat = null;
     }
   });

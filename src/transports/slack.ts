@@ -233,10 +233,34 @@ export class SlackProvider implements ITransportProvider {
     }
   }
 
-  async sendTyping(_chatId: string): Promise<void> {
-    // Slack doesn't support typing indicators for bots
-    // We could potentially add a reaction or use a "thinking" message
-    // but for now we'll just skip it
+  // Slack has no bot "typing..." indicator, so we signal work-in-progress via a reaction
+  // on the triggering message instead.
+  private static readonly WORKING_REACTION = "hourglass_flowing_sand";
+
+  async sendTyping(chatId: string, messageId?: string): Promise<void> {
+    if (!this.app || !messageId) return;
+    try {
+      await this.app.client.reactions.add({
+        channel: chatId,
+        timestamp: messageId,
+        name: SlackProvider.WORKING_REACTION,
+      });
+    } catch {
+      // Ignore — e.g. already reacted, message deleted, missing scope
+    }
+  }
+
+  async clearTyping(chatId: string, messageId?: string): Promise<void> {
+    if (!this.app || !messageId) return;
+    try {
+      await this.app.client.reactions.remove({
+        channel: chatId,
+        timestamp: messageId,
+        name: SlackProvider.WORKING_REACTION,
+      });
+    } catch {
+      // Ignore — e.g. reaction already gone, message deleted
+    }
   }
 
   onMessage(handler: (message: ExternalMessage) => void): void {

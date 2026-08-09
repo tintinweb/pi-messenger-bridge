@@ -74,6 +74,8 @@ export PI_SLACK_BOT_TOKEN="xoxb-..."
 export PI_SLACK_APP_TOKEN="xapp-..."
 ```
 
+Your bot token needs the `reactions:write` scope — the bridge reacts to a message with ⏳ while it's working and removes the reaction once the reply is sent, since Slack has no native typing indicator for bots.
+
 #### Discord
 
 1. Create a new application in the [Developer Portal](https://discord.com/developers/applications)

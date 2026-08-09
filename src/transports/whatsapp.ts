@@ -187,6 +187,10 @@ export class WhatsAppProvider implements ITransportProvider {
     }
   }
 
+  async clearTyping(_chatId: string): Promise<void> {
+    // WhatsApp's presence indicator above already auto-pauses; nothing to clear.
+  }
+
   onMessage(handler: (message: ExternalMessage) => void): void {
     this.messageHandler = handler;
   }

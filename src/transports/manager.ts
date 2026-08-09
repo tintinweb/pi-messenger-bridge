@@ -86,12 +86,22 @@ export class TransportManager {
   }
 
   /**
-   * Send typing indicator to a chat via a specific transport
+   * Signal that the agent is working, via a specific transport
    */
-  async sendTyping(chatId: string, transportType: string): Promise<void> {
+  async sendTyping(chatId: string, transportType: string, messageId?: string): Promise<void> {
     const transport = this.transports.get(transportType);
     if (transport?.isConnected) {
-      await transport.sendTyping(chatId);
+      await transport.sendTyping(chatId, messageId);
+    }
+  }
+
+  /**
+   * Clear the "working" signal, via a specific transport
+   */
+  async clearTyping(chatId: string, transportType: string, messageId?: string): Promise<void> {
+    const transport = this.transports.get(transportType);
+    if (transport?.isConnected) {
+      await transport.clearTyping(chatId, messageId);
     }
   }
 

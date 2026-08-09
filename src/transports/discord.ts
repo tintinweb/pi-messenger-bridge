@@ -223,6 +223,10 @@ export class DiscordProvider implements ITransportProvider {
     }
   }
 
+  async clearTyping(_chatId: string): Promise<void> {
+    // Discord's typing indicator self-expires; nothing to clear.
+  }
+
   onMessage(handler: (message: ExternalMessage) => void): void {
     this.messageHandler = handler;
   }

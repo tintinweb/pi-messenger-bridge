@@ -212,6 +212,10 @@ export class MatrixProvider implements ITransportProvider {
     }
   }
 
+  async clearTyping(_chatId: string): Promise<void> {
+    // Matrix's typing state has an explicit timeout above; nothing to clear.
+  }
+
   onMessage(handler: (message: ExternalMessage) => void): void {
     this.messageHandler = handler;
   }

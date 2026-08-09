@@ -31,10 +31,18 @@ export interface ITransportProvider {
   sendMessage(chatId: string, text: string, options?: SendMessageOptions): Promise<void>;
 
   /**
-   * Send typing indicator to a chat
+   * Signal that the agent is working on a reply to a chat
    * @param chatId - Chat/channel identifier
+   * @param messageId - Identifier of the triggering message, if available
    */
-  sendTyping(chatId: string): Promise<void>;
+  sendTyping(chatId: string, messageId?: string): Promise<void>;
+
+  /**
+   * Clear the "working" signal once a reply has been sent (or the turn errored)
+   * @param chatId - Chat/channel identifier
+   * @param messageId - Identifier of the triggering message, if available
+   */
+  clearTyping(chatId: string, messageId?: string): Promise<void>;
 
   /**
    * Register callback for incoming messages

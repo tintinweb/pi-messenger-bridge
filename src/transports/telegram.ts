@@ -105,6 +105,10 @@ export class TelegramProvider implements ITransportProvider {
     await this.bot.sendChatAction(chatId, "typing");
   }
 
+  async clearTyping(_chatId: string): Promise<void> {
+    // Telegram's typing indicator self-expires; nothing to clear.
+  }
+
   onMessage(handler: (message: ExternalMessage) => void): void {
     this.messageHandler = handler;
   }
