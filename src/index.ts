@@ -181,6 +181,7 @@ export default function (pi: ExtensionAPI): void {
         transport: msg.transport,
         username: msg.username,
         messageId: msg.messageId,
+        threadTs: msg.threadTs,
       };
 
       const taggedMessage = `[📱 @${msg.username} via ${msg.transport}]: ${msg.content}`;
@@ -238,11 +239,14 @@ export default function (pi: ExtensionAPI): void {
 
       // Split long messages for Telegram's 4096 char limit
       const chunks = splitMessage(fullText, 4000);
+      const mirrorThreads = config.slackMirrorThreads !== false;
+      const sendOptions = { threadTs: mirrorThreads ? pendingRemoteChat.threadTs : undefined };
       for (const chunk of chunks) {
         await transportManager.sendMessage(
           pendingRemoteChat.chatId,
           pendingRemoteChat.transport,
-          chunk
+          chunk,
+          sendOptions
         );
       }
 
@@ -305,6 +309,7 @@ export default function (pi: ExtensionAPI): void {
           "                              Configure Matrix (Element X, etc)",
           "/msg-bridge widget            Toggle status widget on/off",
           "/msg-bridge toggletools       Toggle tool call visibility",
+          "/msg-bridge togglethreads     Toggle Slack thread-reply mirroring",
           "",
           "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
         ];
@@ -534,6 +539,14 @@ export default function (pi: ExtensionAPI): void {
         saveConfig(cfg3);
         const toolState = cfg3.hideToolCalls ? "hidden" : "shown";
         context.ui.notify(`🔧 Tool calls ${toolState} in remote messages`, "info");
+        break;
+      }
+      case "togglethreads": {
+        const cfg4 = loadConfig();
+        cfg4.slackMirrorThreads = !(cfg4.slackMirrorThreads ?? true);
+        saveConfig(cfg4);
+        const threadState = cfg4.slackMirrorThreads !== false ? "on" : "off";
+        context.ui.notify(`🧵 Slack thread mirroring ${threadState}`, "info");
         break;
       }
       default:

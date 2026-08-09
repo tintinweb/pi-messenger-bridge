@@ -20,6 +20,8 @@ export interface ExternalMessage {
   isGroupChat: boolean;
   /** Was the bot mentioned? (for group chats) */
   wasMentioned?: boolean;
+  /** Thread identifier, if this message was itself sent inside a thread (Slack only) */
+  threadTs?: string;
 }
 
 /**
@@ -53,6 +55,8 @@ export interface MsgBridgeConfig {
   autoConnect?: boolean;
   showWidget?: boolean;
   debug?: boolean;
+  /** Reply in-thread when the inbound Slack message was itself in a thread. Default: on (undefined = true). */
+  slackMirrorThreads?: boolean;
 }
 
 /**
@@ -63,6 +67,15 @@ export interface PendingRemoteChat {
   transport: string;
   username: string;
   messageId: string;
+  threadTs?: string;
+}
+
+/**
+ * Optional per-message send options
+ */
+export interface SendMessageOptions {
+  /** Reply within this thread (Slack only; ignored by other transports) */
+  threadTs?: string;
 }
 
 /**

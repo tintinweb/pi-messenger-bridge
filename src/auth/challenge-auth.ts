@@ -277,6 +277,15 @@ export class ChallengeAuth {
         return true;
       }
 
+      case "/togglethreads": {
+        const cfg = loadConfig();
+        cfg.slackMirrorThreads = !(cfg.slackMirrorThreads ?? true);
+        saveConfig(cfg);
+        const state = cfg.slackMirrorThreads !== false ? "on" : "off";
+        await sendMessage(`🧵 Thread mirroring ${state}`);
+        return true;
+      }
+
       case "/revoke": {
         if (parts.length < 2) {
           await sendMessage("Usage: /revoke <userId> or /revoke <transport:userId>");
@@ -382,6 +391,7 @@ export class ChallengeAuth {
   Modes: \`all\`, \`mentions\`, \`trusted-only\`
 • \`/disable <chatId>\` — Disable a channel
 • \`/toggletools\` — Toggle tool call visibility in replies
+• \`/togglethreads\` — Toggle Slack thread mirroring (reply in-thread when the user's message was itself in a thread; on by default)
 
 *Authentication:*
 • First DM to bot → 6-digit code shown in terminal

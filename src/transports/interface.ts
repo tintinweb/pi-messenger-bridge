@@ -1,4 +1,4 @@
-import type { ExternalMessage } from "../types.js";
+import type { ExternalMessage, SendMessageOptions } from "../types.js";
 
 /**
  * Transport provider interface
@@ -26,8 +26,9 @@ export interface ITransportProvider {
    * Send a text message to a chat
    * @param chatId - Chat/channel identifier
    * @param text - Message content
+   * @param options - Optional per-message send options (e.g. thread targeting)
    */
-  sendMessage(chatId: string, text: string): Promise<void>;
+  sendMessage(chatId: string, text: string, options?: SendMessageOptions): Promise<void>;
 
   /**
    * Send typing indicator to a chat
