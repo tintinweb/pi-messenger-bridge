@@ -1,6 +1,5 @@
 import * as crypto from "crypto";
 import * as fs from "fs";
-import * as os from "os";
 import * as path from "path";
 import type { ChallengeAuth } from "../auth/challenge-auth.js";
 import type { ExternalMessage, SendMessageOptions } from "../types.js";
@@ -8,7 +7,6 @@ import type { ITransportProvider } from "./interface.js";
 import { formatForSlack } from "./slack-utils.js";
 
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20MB
-const UPLOADS_DIR = path.join(os.homedir(), ".pi", "msg-bridge-uploads");
 
 /** Strip anything but a conservative filename character set. */
 function sanitizeFilename(name: string): string {
@@ -39,11 +37,16 @@ export class SlackProvider implements ITransportProvider {
   private userCache: Map<string, string> = new Map();
   // Cache channel info to detect DMs vs channels
   private channelCache: Map<string, { isDM: boolean; name?: string }> = new Map();
+  // Where inbound file attachments are saved — under the current project workspace, not the user's home dir
+  private uploadsDir: string;
 
   constructor(
     private config: { botToken: string; appToken: string },
-    private auth: ChallengeAuth
-  ) {}
+    private auth: ChallengeAuth,
+    cwd: string
+  ) {
+    this.uploadsDir = path.join(cwd, ".pi", "msg-bridge-uploads");
+  }
 
   get isConnected(): boolean {
     return this._isConnected;
@@ -262,10 +265,10 @@ export class SlackProvider implements ITransportProvider {
       const buf = Buffer.from(await res.arrayBuffer());
       if (buf.byteLength > MAX_UPLOAD_BYTES) return null;
 
-      fs.mkdirSync(UPLOADS_DIR, { recursive: true, mode: 0o700 });
+      fs.mkdirSync(this.uploadsDir, { recursive: true, mode: 0o700 });
       const uniquePrefix = crypto.randomBytes(4).toString("hex");
       const filename = `${file.id || uniquePrefix}-${sanitizeFilename(file.name || "file")}`;
-      const savedPath = path.join(UPLOADS_DIR, filename);
+      const savedPath = path.join(this.uploadsDir, filename);
       fs.writeFileSync(savedPath, buf, { mode: 0o600 });
       return savedPath;
     } catch {

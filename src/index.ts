@@ -130,7 +130,7 @@ export default function (pi: ExtensionAPI): void {
       if (config.slack?.botToken && config.slack?.appToken) {
         transportPromises.push(
           Promise.resolve().then(() => {
-            const slackProvider = new SlackProvider(config.slack!, auth);
+            const slackProvider = new SlackProvider(config.slack!, auth, ctx.cwd);
             transportManager.addTransport(slackProvider);
           })
         );
@@ -360,6 +360,7 @@ export default function (pi: ExtensionAPI): void {
         transportManager,
         auth,
         updateWidget,
+        cwd: context.cwd,
       });
       return;
     }
@@ -490,7 +491,7 @@ export default function (pi: ExtensionAPI): void {
 
             config.slack = { botToken, appToken };
             saveConfig(config);
-            const slackProvider = new SlackProvider(config.slack, auth);
+            const slackProvider = new SlackProvider(config.slack, auth, context.cwd);
             transportManager.addTransport(slackProvider);
             if (acquireLock()) {
               try {
