@@ -172,11 +172,14 @@ Example config:
     "trustedUsers": ["telegram:123", "whatsapp:456"],
     "adminUserId": "telegram:789"
   },
+  "admins": ["telegram:789"],
   "autoConnect": true,
   "showWidget": true,
   "debug": false
 }
 ```
+
+`admins` (namespaced `transport:userId`, edit the config file directly — no chat command for this yet) controls tool access, layered on top of the existing trust/channel authorization above: any already-authorized user in this list gets full read-write tool access; everyone else gets read-only tools (`read`/`grep`/`find`/`ls` — no `bash`/`edit`/`write`) for the duration of processing their message. This is a single global toggle shared with your local terminal session, not a per-conversation sandbox — tools are restricted right before a non-admin's message is forwarded to the agent and restored to full access once that turn completes (including on error).
 
 ## Environment Variables
 

@@ -18,6 +18,11 @@ import type { PendingRemoteChat, TransportStatus } from "./types.js";
 import { openMainMenu } from "./ui/main-menu.js";
 import { createStatusWidget } from "./ui/status-widget.js";
 
+// Mirrors @earendil-works/pi-coding-agent's fixed ToolName union — not re-exported from the
+// package root, so kept here rather than deep-importing an internal module path.
+const ALL_TOOLS = ["read", "bash", "edit", "write", "grep", "find", "ls"];
+const READ_ONLY_TOOLS = ["read", "grep", "find", "ls"];
+
 /**
  * pi-remote-pilot extension
  * Bridges messenger apps (Telegram, WhatsApp, Slack, Discord) into pi
@@ -27,6 +32,19 @@ export default function (pi: ExtensionAPI): void {
   let pendingRemoteChat: PendingRemoteChat | null = null;
   let auth: ChallengeAuth;
   let ctx: ExtensionContext;
+
+  /**
+   * Restrict or restore the agent's active tools, skipping redundant calls (each call rebuilds
+   * the system prompt). Used to put non-admin remote users into a read-only tool set for the
+   * duration of their message, then restore full access once the turn completes.
+   */
+  function applyToolAccess(desired: string[]): void {
+    const current = pi.getActiveTools();
+    const same = current.length === desired.length && current.every((t) => desired.includes(t));
+    if (!same) {
+      pi.setActiveTools(desired);
+    }
+  }
 
   /**
    * Update status widget
@@ -185,6 +203,10 @@ export default function (pi: ExtensionAPI): void {
         threadTs: msg.threadTs,
       };
 
+      const namespacedUserId = `${msg.transport}:${msg.userId}`;
+      const isAdmin = (loadConfig().admins ?? []).includes(namespacedUserId);
+      applyToolAccess(isAdmin ? ALL_TOOLS : READ_ONLY_TOOLS);
+
       const taggedMessage = `[📱 @${msg.username} via ${msg.transport}]: ${msg.content}`;
       pi.sendUserMessage(taggedMessage, { deliverAs: "followUp" });
     });
@@ -258,6 +280,7 @@ export default function (pi: ExtensionAPI): void {
           pendingRemoteChat.transport,
           pendingRemoteChat.messageId
         );
+        applyToolAccess(ALL_TOOLS);
         pendingRemoteChat = null;
       }
     } catch (err) {
@@ -277,6 +300,7 @@ export default function (pi: ExtensionAPI): void {
           // Ignore — best-effort cleanup
         }
       }
+      applyToolAccess(ALL_TOOLS);
       pendingRemoteChat = null;
     }
   });

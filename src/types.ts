@@ -57,6 +57,13 @@ export interface MsgBridgeConfig {
   debug?: boolean;
   /** Reply in-thread when the inbound Slack message was itself in a thread. Default: on (undefined = true). */
   slackMirrorThreads?: boolean;
+  /**
+   * Namespaced user IDs ("transport:userId") who get full read-write tool access when messaging
+   * the agent. Everyone else who's otherwise authorized gets read-only tools for the duration of
+   * their message. Layered on top of existing auth — a user still has to pass checkAuthorization
+   * first; this only decides how much the agent can do once a message is let through.
+   */
+  admins?: string[];
 }
 
 /**
