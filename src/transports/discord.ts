@@ -1,5 +1,5 @@
 import type { ChallengeAuth } from "../auth/challenge-auth.js";
-import type { ExternalMessage } from "../types.js";
+import type { ExternalMessage, SendMessageOptions } from "../types.js";
 import type { ITransportProvider } from "./interface.js";
 
 // Dynamic import for ESM modules
@@ -183,7 +183,7 @@ export class DiscordProvider implements ITransportProvider {
     console.log("[Discord] Disconnected");
   }
 
-  async sendMessage(chatId: string, text: string): Promise<void> {
+  async sendMessage(chatId: string, text: string, _options?: SendMessageOptions): Promise<void> {
     if (!this.client) {
       throw new Error("Discord not connected");
     }
@@ -221,6 +221,10 @@ export class DiscordProvider implements ITransportProvider {
     } catch (error) {
       console.warn("[Discord] Failed to send typing:", error);
     }
+  }
+
+  async clearTyping(_chatId: string): Promise<void> {
+    // Discord's typing indicator self-expires; nothing to clear.
   }
 
   onMessage(handler: (message: ExternalMessage) => void): void {

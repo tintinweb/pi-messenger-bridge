@@ -1,6 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import type { ChallengeAuth } from "../auth/challenge-auth.js";
-import type { ExternalMessage } from "../types.js";
+import type { ExternalMessage, SendMessageOptions } from "../types.js";
 import type { ITransportProvider } from "./interface.js";
 
 /**
@@ -91,7 +91,7 @@ export class TelegramProvider implements ITransportProvider {
     this.bot = undefined;
   }
 
-  async sendMessage(chatId: string, text: string): Promise<void> {
+  async sendMessage(chatId: string, text: string, _options?: SendMessageOptions): Promise<void> {
     if (!this.bot) {
       throw new Error("Telegram bot not connected");
     }
@@ -103,6 +103,10 @@ export class TelegramProvider implements ITransportProvider {
   async sendTyping(chatId: string): Promise<void> {
     if (!this.bot) return;
     await this.bot.sendChatAction(chatId, "typing");
+  }
+
+  async clearTyping(_chatId: string): Promise<void> {
+    // Telegram's typing indicator self-expires; nothing to clear.
   }
 
   onMessage(handler: (message: ExternalMessage) => void): void {

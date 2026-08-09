@@ -27,6 +27,7 @@ export interface MenuContext {
   transportManager: TransportManager;
   auth: ChallengeAuth;
   updateWidget: () => void;
+  cwd: string;
 }
 
 // ── Status ──────────────────────────────────────────────────────────────────
@@ -151,7 +152,7 @@ async function doConfigure(mctx: MenuContext): Promise<void> {
       if (!appToken) return;
       config.slack = { botToken, appToken };
       saveConfig(config);
-      const provider = new SlackProvider(config.slack, mctx.auth);
+      const provider = new SlackProvider(config.slack, mctx.auth, mctx.cwd);
       mctx.transportManager.addTransport(provider);
       if (acquireLock()) {
         try {

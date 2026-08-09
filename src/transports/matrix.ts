@@ -11,7 +11,7 @@ import {
 import * as os from "os";
 import * as path from "path";
 import type { ChallengeAuth } from "../auth/challenge-auth.js";
-import type { ExternalMessage } from "../types.js";
+import type { ExternalMessage, SendMessageOptions } from "../types.js";
 import type { ITransportProvider } from "./interface.js";
 import {
   extractUsername,
@@ -185,7 +185,7 @@ export class MatrixProvider implements ITransportProvider {
     console.log("[Matrix] Disconnected");
   }
 
-  async sendMessage(chatId: string, text: string): Promise<void> {
+  async sendMessage(chatId: string, text: string, _options?: SendMessageOptions): Promise<void> {
     if (!this.client) {
       throw new Error("Matrix client not connected");
     }
@@ -210,6 +210,10 @@ export class MatrixProvider implements ITransportProvider {
     } catch {
       // Ignore typing indicator errors
     }
+  }
+
+  async clearTyping(_chatId: string): Promise<void> {
+    // Matrix's typing state has an explicit timeout above; nothing to clear.
   }
 
   onMessage(handler: (message: ExternalMessage) => void): void {

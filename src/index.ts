@@ -1,4 +1,5 @@
 import type { AssistantMessage } from "@earendil-works/pi-ai";
+import { Type } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import * as fs from "fs";
 import * as os from "os";
@@ -129,7 +130,7 @@ export default function (pi: ExtensionAPI): void {
       if (config.slack?.botToken && config.slack?.appToken) {
         transportPromises.push(
           Promise.resolve().then(() => {
-            const slackProvider = new SlackProvider(config.slack!, auth);
+            const slackProvider = new SlackProvider(config.slack!, auth, ctx.cwd);
             transportManager.addTransport(slackProvider);
           })
         );
@@ -181,6 +182,7 @@ export default function (pi: ExtensionAPI): void {
         transport: msg.transport,
         username: msg.username,
         messageId: msg.messageId,
+        threadTs: msg.threadTs,
       };
 
       const taggedMessage = `[📱 @${msg.username} via ${msg.transport}]: ${msg.content}`;
@@ -202,7 +204,8 @@ export default function (pi: ExtensionAPI): void {
       try {
         await transportManager.sendTyping(
           pendingRemoteChat.chatId,
-          pendingRemoteChat.transport
+          pendingRemoteChat.transport,
+          pendingRemoteChat.messageId
         );
       } catch (_err) {
         // Ignore typing indicator errors
@@ -238,15 +241,23 @@ export default function (pi: ExtensionAPI): void {
 
       // Split long messages for Telegram's 4096 char limit
       const chunks = splitMessage(fullText, 4000);
+      const mirrorThreads = config.slackMirrorThreads !== false;
+      const sendOptions = { threadTs: mirrorThreads ? pendingRemoteChat.threadTs : undefined };
       for (const chunk of chunks) {
         await transportManager.sendMessage(
           pendingRemoteChat.chatId,
           pendingRemoteChat.transport,
-          chunk
+          chunk,
+          sendOptions
         );
       }
 
       if (!hasPendingTools) {
+        await transportManager.clearTyping(
+          pendingRemoteChat.chatId,
+          pendingRemoteChat.transport,
+          pendingRemoteChat.messageId
+        );
         pendingRemoteChat = null;
       }
     } catch (err) {
@@ -255,6 +266,17 @@ export default function (pi: ExtensionAPI): void {
         `Failed to send response to ${transport}: ${(err as Error).message}`,
         "error"
       );
+      if (pendingRemoteChat) {
+        try {
+          await transportManager.clearTyping(
+            pendingRemoteChat.chatId,
+            pendingRemoteChat.transport,
+            pendingRemoteChat.messageId
+          );
+        } catch (_clearErr) {
+          // Ignore — best-effort cleanup
+        }
+      }
       pendingRemoteChat = null;
     }
   });
@@ -265,6 +287,61 @@ export default function (pi: ExtensionAPI): void {
   pi.on("session_shutdown", async (_event, _context) => {
     await transportManager.disconnectAll();
     releaseLock();
+  });
+
+  /**
+   * Tool: let the agent post an existing local file into the active remote Slack chat.
+   */
+  pi.registerTool({
+    name: "slack_upload_file",
+    label: "Upload file to Slack",
+    description:
+      "Upload an existing local file to the Slack conversation currently in progress (e.g. a screenshot, " +
+      "or a file the user attached earlier in this conversation and was saved locally). Only works while " +
+      "replying to a remote Slack message.",
+    promptSnippet: "slack_upload_file — post a local file to the active Slack chat",
+    parameters: Type.Object({
+      filePath: Type.String({ description: "Absolute or relative path to an existing local file to upload." }),
+      comment: Type.Optional(Type.String({ description: "Optional caption to post alongside the file." })),
+    }),
+    execute: async (_toolCallId, params) => {
+      if (!pendingRemoteChat || pendingRemoteChat.transport !== "slack") {
+        return {
+          content: [{ type: "text", text: "No active Slack conversation to upload to." }],
+          details: undefined,
+          isError: true,
+        };
+      }
+
+      const slack = transportManager.getTransport("slack") as SlackProvider | undefined;
+      if (!slack) {
+        return {
+          content: [{ type: "text", text: "Slack transport is not available." }],
+          details: undefined,
+          isError: true,
+        };
+      }
+
+      try {
+        const config = loadConfig();
+        const mirrorThreads = config.slackMirrorThreads !== false;
+        await slack.uploadFile(pendingRemoteChat.chatId, params.filePath, {
+          comment: params.comment,
+          threadTs: mirrorThreads ? pendingRemoteChat.threadTs : undefined,
+        });
+        return {
+          content: [{ type: "text", text: `Uploaded ${params.filePath} to Slack.` }],
+          details: undefined,
+          isError: false,
+        };
+      } catch (err) {
+        return {
+          content: [{ type: "text", text: `Failed to upload file: ${(err as Error).message}` }],
+          details: undefined,
+          isError: true,
+        };
+      }
+    },
   });
 
   /**
@@ -283,6 +360,7 @@ export default function (pi: ExtensionAPI): void {
         transportManager,
         auth,
         updateWidget,
+        cwd: context.cwd,
       });
       return;
     }
@@ -305,6 +383,7 @@ export default function (pi: ExtensionAPI): void {
           "                              Configure Matrix (Element X, etc)",
           "/msg-bridge widget            Toggle status widget on/off",
           "/msg-bridge toggletools       Toggle tool call visibility",
+          "/msg-bridge togglethreads     Toggle Slack thread-reply mirroring",
           "",
           "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
         ];
@@ -412,7 +491,7 @@ export default function (pi: ExtensionAPI): void {
 
             config.slack = { botToken, appToken };
             saveConfig(config);
-            const slackProvider = new SlackProvider(config.slack, auth);
+            const slackProvider = new SlackProvider(config.slack, auth, context.cwd);
             transportManager.addTransport(slackProvider);
             if (acquireLock()) {
               try {
@@ -534,6 +613,14 @@ export default function (pi: ExtensionAPI): void {
         saveConfig(cfg3);
         const toolState = cfg3.hideToolCalls ? "hidden" : "shown";
         context.ui.notify(`🔧 Tool calls ${toolState} in remote messages`, "info");
+        break;
+      }
+      case "togglethreads": {
+        const cfg4 = loadConfig();
+        cfg4.slackMirrorThreads = !(cfg4.slackMirrorThreads ?? true);
+        saveConfig(cfg4);
+        const threadState = cfg4.slackMirrorThreads !== false ? "on" : "off";
+        context.ui.notify(`🧵 Slack thread mirroring ${threadState}`, "info");
         break;
       }
       default:
